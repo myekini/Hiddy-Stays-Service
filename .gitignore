@@ -125,6 +125,9 @@ nul
 *_TEMP.md
 *_DEBUG.md
 
+# Test results
+test-results.json
+
 # Documentation (development artifacts)
 FIXES_*.md
 IMPLEMENTATION_*.md
@@ -132,3 +135,6 @@ TEST_*.md
 *_RESULTS.md
 IMPROVEMENTS_*.md
 SYSTEM_AUDIT_*.md
+
+# Editor directories (keep .vscode for team settings)
+.claude/
