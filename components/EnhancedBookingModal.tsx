@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   Calendar,
@@ -20,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, isBefore, isAfter, differenceInDays } from "date-fns";
+import { format, isBefore, differenceInDays } from "date-fns";
 
 interface Property {
   id: string;
@@ -77,6 +78,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
   onBookingConfirm,
   initialDateRange,
 }) => {
+  const router = useRouter();
   const [step, setStep] = useState<
     "dates" | "guests" | "contact" | "review" | "payment" | "confirmation"
   >("dates");
@@ -235,28 +237,29 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
         return;
       }
 
-      // Check for existing bookings in the date range
-      const { data: conflicts, error } = await supabase
-        .from("bookings")
-        .select("check_in_date, check_out_date")
-        .eq("property_id", property.id)
-        .in("status", ["confirmed", "pending"])
-        .or(`check_in_date.lte.${checkOut},check_out_date.gte.${checkIn}`);
-
-      if (error) throw error;
-
-      const hasConflicts = conflicts && conflicts.length > 0;
-      setAvailability({
-        available: !hasConflicts,
-        conflicts: hasConflicts
-          ? conflicts.map((conflict) => ({
-              checkIn: conflict.check_in_date,
-              checkOut: conflict.check_out_date,
-            }))
-          : [],
+      // Check availability via dedicated API endpoint (uses service role to see all bookings)
+      const response = await fetch("/api/bookings/check-availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: property.id,
+          checkIn,
+          checkOut,
+        }),
       });
 
-      if (!hasConflicts) {
+      if (!response.ok) {
+        throw new Error("Failed to check availability");
+      }
+
+      const data = await response.json();
+
+      setAvailability({
+        available: data.available,
+        conflicts: data.conflicts || [],
+      });
+
+      if (data.available) {
         calculateTotal(checkIn, checkOut, bookingData.guests);
       }
     } catch (error) {
@@ -332,8 +335,25 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
       if (!guestInfo.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email)) {
         newErrors.email = "Valid email address is required";
       }
-      if (!guestInfo.phone || guestInfo.phone.trim().length < 10) {
-        newErrors.phone = "Valid phone number is required (at least 10 digits)";
+      
+      // Enhanced phone validation - check for country code
+      if (!guestInfo.phone || guestInfo.phone.trim().length === 0) {
+        newErrors.phone = "Phone number is required";
+      } else {
+        const phone = guestInfo.phone.trim();
+        // Check if phone starts with + (country code)
+        if (!phone.startsWith("+")) {
+          // Auto-format: if it's a 10-digit US/Canada number, add +1
+          const digitsOnly = phone.replace(/\D/g, "");
+          if (digitsOnly.length === 10) {
+            // Auto-format to +1 format
+            setGuestInfo({ ...guestInfo, phone: `+1${digitsOnly}` });
+          } else {
+            newErrors.phone = "Please include country code (e.g., +1 for North America)";
+          }
+        } else if (phone.startsWith("+") && phone.length < 8) {
+          newErrors.phone = "Please enter a complete phone number with country code";
+        }
       }
 
       if (Object.keys(newErrors).length > 0) {
@@ -363,63 +383,110 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
         data: { user },
       } = await supabase.auth.getUser();
 
+      // Prepare booking data
+      const bookingPayload = {
+        propertyId: property.id,
+        checkIn: bookingData.checkIn,
+        checkOut: bookingData.checkOut,
+        guests: bookingData.guests,
+        totalAmount: bookingData.totalAmount,
+        guestInfo: {
+          userId: user?.id || null,
+          name: guestInfo.name.trim(),
+          email: guestInfo.email.trim(),
+          phone: guestInfo.phone.trim(),
+          specialRequests: "",
+        },
+      };
+
       // Create booking via API (handles both logged-in and guest users)
       const bookingResponse = await fetch("/api/bookings/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          propertyId: property.id,
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          guests: bookingData.guests,
-          totalAmount: bookingData.totalAmount,
-          guestInfo: {
-            userId: user?.id || null,
-            name: guestInfo.name,
-            email: guestInfo.email,
-            phone: guestInfo.phone,
-            specialRequests: "",
-          },
-        }),
+        body: JSON.stringify(bookingPayload),
       });
 
       if (!bookingResponse.ok) {
         const errorData = await bookingResponse.json();
+        
+        // Handle validation errors - show specific field errors
+        if (errorData.details && Array.isArray(errorData.details)) {
+          const fieldErrors: Record<string, string> = {};
+          
+          // Map validation errors to form fields
+          errorData.details.forEach((error: string) => {
+            if (error.toLowerCase().includes("name")) {
+              fieldErrors.name = error;
+            } else if (error.toLowerCase().includes("email")) {
+              fieldErrors.email = error;
+            } else if (error.toLowerCase().includes("phone")) {
+              fieldErrors.phone = error;
+            } else if (error.toLowerCase().includes("check-in") || error.toLowerCase().includes("date")) {
+              // Date errors - go back to dates step
+              setStep("dates");
+              setErrors({ dates: error });
+            } else if (error.toLowerCase().includes("guest")) {
+              setStep("guests");
+              setErrors({ guests: error });
+            }
+          });
+          
+          // Set field-specific errors if any
+          if (Object.keys(fieldErrors).length > 0) {
+            setErrors(fieldErrors);
+            setStep("contact"); // Go back to contact step if there are contact errors
+          }
+          
+          // Show toast with all validation errors
+          toast({
+            title: "Validation Error",
+            description: errorData.details.join(". "),
+            variant: "destructive",
+          });
+          
+          // Don't throw - let user fix the errors
+          return;
+        }
+
+        // Handle availability conflicts (409) gracefully
+        if (bookingResponse.status === 409) {
+          setStep("dates");
+          toast({
+            title: "Dates Unavailable",
+            description: errorData.message || "The property has been booked for these dates. Please select different dates.",
+            variant: "destructive",
+          });
+          // Re-check availability to update the UI with the new conflict
+          checkAvailability(bookingData.checkIn, bookingData.checkOut);
+          return;
+        }
+        
+        // For other errors, throw with the message
         throw new Error(errorData.message || errorData.error || "Failed to create booking");
       }
 
-      const { bookingId } = await bookingResponse.json();
+      const bookingResult = await bookingResponse.json();
+      const { bookingId } = bookingResult;
 
-      // Create Stripe payment session
-      const paymentResponse = await fetch("/api/payments/create-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bookingId: bookingId,
-          amount: bookingData.totalAmount,
-          currency: "cad",
-          success_url: `${window.location.origin}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${window.location.origin}/booking/cancel`,
-        }),
+      // Show success message for booking creation
+      toast({
+        title: "Booking Created! 🎉",
+        description: "Your booking request has been submitted. Redirecting to payment...",
       });
 
-      if (!paymentResponse.ok) {
-        throw new Error("Failed to create payment session");
+      if (onBookingConfirm) {
+        onBookingConfirm(bookingId);
       }
 
-      const { url } = await paymentResponse.json();
-
-      // Redirect to Stripe checkout
-      window.location.href = url;
-    } catch (error) {
+      onClose();
+      router.push(`/booking/${bookingId}/pay`);
+    } catch (error: any) {
       console.error("Error creating booking:", error);
       toast({
         title: "Booking Error",
-        description: error instanceof Error ? error.message : "Failed to create booking. Please try again.",
+        description: error.message || "Failed to create booking. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -472,7 +539,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 flex-shrink-0">
               <img
-                src={property.images?.[0] || '/assets/default-property.jpg'}
+                src={property.images?.[0] || '/placeholder.svg'}
                 alt={property.title}
                 className="w-full h-full object-cover rounded-xl ring-2 ring-slate-200 dark:ring-slate-700"
               />
@@ -813,13 +880,21 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                     type="tel"
                     placeholder="+1 (555) 123-4567"
                     value={guestInfo.phone}
-                    onChange={(e) =>
-                      setGuestInfo({ ...guestInfo, phone: e.target.value })
-                    }
+                    onChange={(e) => {
+                      let value = e.target.value;
+                      // Allow only digits, +, spaces, parentheses, and hyphens
+                      value = value.replace(/[^\d+\s()-]/g, "");
+                      setGuestInfo({ ...guestInfo, phone: value });
+                    }}
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && (
                     <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                  )}
+                  {!errors.phone && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      Include country code (e.g., +1 for US/Canada)
+                    </p>
                   )}
                 </div>
               </div>
@@ -900,28 +975,23 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
           {step !== "confirmation" && bookingData.totalAmount > 0 && (
             <Card className="p-4 mt-6">
               <h4 className="font-semibold text-foreground mb-3">
-                Price Breakdown
+                Price Details
               </h4>
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-gray-600">
                   <span>
                     ${property.price_per_night} × {bookingData.totalNights}{" "}
-                    nights
+                    night{bookingData.totalNights > 1 ? "s" : ""}
                   </span>
-                  <span>${bookingData.subtotal}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cleaning fee</span>
-                  <span>${bookingData.cleaningFee}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Service fee</span>
-                  <span>${bookingData.serviceFee}</span>
+                  <span>${bookingData.subtotal.toLocaleString()}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between font-semibold text-lg">
-                  <span>Total</span>
-                  <span>${bookingData.totalAmount}</span>
+                  <span>Estimated Total</span>
+                  <span>${bookingData.totalAmount.toLocaleString()}</span>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Final amount calculated at checkout. Includes all fees.
+                </p>
               </div>
             </Card>
           )}

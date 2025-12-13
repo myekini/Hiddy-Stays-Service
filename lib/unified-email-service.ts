@@ -219,7 +219,46 @@ class UnifiedEmailService {
   }
 
   /**
-   * Send booking confirmation to guest
+   * Send booking request email (before payment)
+   */
+  async sendBookingRequest(data: BookingEmailData & { paymentUrl?: string }): Promise<EmailResult> {
+    const template = HiddyStaysEmailTemplates.BookingRequestTemplate({
+      guestName: data.guestName,
+      guestEmail: data.guestEmail,
+      propertyName: data.propertyTitle,
+      checkInDate: data.checkInDate,
+      checkOutDate: data.checkOutDate,
+      guests: data.guests,
+      totalAmount: data.totalAmount,
+      bookingId: data.bookingId,
+      paymentUrl: (data as any).paymentUrl,
+    });
+
+    const result = await this.sendEmail(
+      data.guestEmail,
+      `Complete your booking at ${data.propertyTitle} 🏠`,
+      template,
+      "HiddyStays <admin@hiddystays.com>"
+    );
+
+    if (result.success && result.emailId) {
+      await this.trackEmailEvent(
+        "booking_request_sent",
+        result.emailId,
+        data.guestEmail,
+        "booking_request",
+        {
+          bookingId: data.bookingId,
+          propertyTitle: data.propertyTitle,
+        }
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Send booking confirmation to guest (after payment)
    */
   async sendBookingConfirmation(data: BookingEmailData): Promise<EmailResult> {
     const template = HiddyStaysEmailTemplates.BookingConfirmationTemplate({

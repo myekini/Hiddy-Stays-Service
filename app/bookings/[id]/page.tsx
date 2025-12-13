@@ -361,7 +361,7 @@ export default function BookingDetailsPage() {
                 <div className="relative h-80">
                   <img
                     src={
-                      booking.property.images[0] || "/placeholder-property.jpg"
+                      booking.property.images[0] || "/placeholder.svg"
                     }
                     alt={booking.property.title}
                     className="w-full h-full object-cover"

@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles } from "lucide-react";
+import LogoImage from "@/components/LogoImage";
+import Link from "next/link";
 
 export function HeroHeader() {
   return (
@@ -16,14 +17,9 @@ export function HeroHeader() {
       <div className="container mx-auto px-6 py-8">
         <div className="flex items-center justify-between">
           {/* Logo/Brand */}
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-foreground">
-              ZeroFeeStays
-            </span>
-          </div>
+          <Link href="/" className="flex items-center group">
+            <LogoImage size="sm" className="group-hover:opacity-80 transition-opacity duration-200" />
+          </Link>
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">

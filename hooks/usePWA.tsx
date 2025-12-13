@@ -6,7 +6,12 @@ export const usePWA = () => {
 
   useEffect(() => {
     // Register service worker
-    if ('serviceWorker' in navigator) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (!isDev && !isLocalhost && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {
           console.log('SW registered: ', registration);
@@ -51,8 +56,8 @@ export const usePWA = () => {
   const sendNotification = (title: string, options?: NotificationOptions) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(title, {
-        icon: '/placeholder.svg',
-        badge: '/placeholder.svg',
+        icon: '/icons/light_pwa_192x192.png',
+        badge: '/icons/light_pwa_96x96.png',
         ...options
       });
     }

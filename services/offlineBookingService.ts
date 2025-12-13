@@ -147,7 +147,7 @@ class OfflineBookingService {
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Booking Synced', {
             body: 'Your offline booking has been confirmed!',
-            icon: '/placeholder.svg'
+            icon: '/icons/light_pwa_192x192.png'
           });
         }
       } catch (error) {

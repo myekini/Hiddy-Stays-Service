@@ -195,9 +195,17 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.APP_URL ||
       "http://localhost:3000";
+    
+    // Payment methods: card + bank options for lower fees
+    // Interac for Canada, ACH for US - reduces processing fees
+    const paymentMethods: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = [
+      "card",
+      // "achoice" // Uncomment for Canadian Interac when enabled in Stripe
+    ];
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
+      payment_method_types: paymentMethods,
       line_items: [
         {
           price_data: {

@@ -100,6 +100,21 @@ function PropertiesContent() {
       });
 
       const response = await fetch(`/api/properties?${queryParams.toString()}`);
+      
+      // Check if response is OK before parsing JSON
+      if (!response.ok) {
+        let errorMessage = `Failed to fetch properties (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        setError(errorMessage);
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -108,7 +123,14 @@ function PropertiesContent() {
         setError(data.error || "Failed to fetch properties");
       }
     } catch (err) {
-      setError("An error occurred while fetching properties");
+      // Handle network errors, CORS errors, etc.
+      const errorMessage = err instanceof TypeError && err.message === "Failed to fetch"
+        ? "Network error. Please check your connection and try again."
+        : err instanceof Error
+        ? err.message
+        : "An error occurred while fetching properties";
+      
+      setError(errorMessage);
       console.error("Error fetching properties:", err);
     } finally {
       setLoading(false);

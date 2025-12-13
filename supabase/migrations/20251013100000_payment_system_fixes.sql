@@ -225,10 +225,10 @@ DECLARE
   cleaning_fee DECIMAL(10,2) := 0;
   service_fee DECIMAL(10,2) := 0;
 BEGIN
-  -- Get property price
-  SELECT price_per_night INTO property_price
-  FROM public.properties
-  WHERE id = property_uuid AND is_active = true;
+  -- Get property price (qualify column name to avoid ambiguity)
+  SELECT p.price_per_night INTO property_price
+  FROM public.properties p
+  WHERE p.id = property_uuid AND p.is_active = true;
 
   IF property_price IS NULL THEN
     RAISE EXCEPTION 'Property not found or not active';

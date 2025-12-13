@@ -41,35 +41,28 @@ export const BaseTemplate = ({
   <Html>
     <Head />
     <Preview>{preview || title || ""}</Preview>
-    <Tailwind>
-      <Body style={{ backgroundColor: "#F7FAFC", margin: "0", fontFamily: 'Inter, Arial, sans-serif' }}>
-        <Container style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, margin: "40px auto", padding: 24, maxWidth: 600 }}>
-          {/* Header */}
-          <Section>
-            <Row>
-              <Column align="center">
-                <Heading style={{ color: textMain, fontSize: 20, fontWeight: 800, margin: 0 }}>HiddyStays</Heading>
-                <Text style={{ color: textMuted, fontSize: 12, margin: 4 }}>Direct stays. Zero fees.</Text>
-              </Column>
-            </Row>
-          </Section>
+    <Body style={{ backgroundColor: "#f9fafb", margin: "0", fontFamily: 'system-ui, sans-serif' }}>
+      <Container style={{ backgroundColor: "#ffffff", margin: "32px auto", padding: "32px", maxWidth: "560px", borderRadius: "8px" }}>
+        {/* Header */}
+        <Section>
+          <Heading style={{ color: "#111827", fontSize: "24px", fontWeight: "600", margin: "0 0 8px 0" }}>
+            HiddyStays
+          </Heading>
+          <Text style={{ color: "#6b7280", fontSize: "14px", margin: "0 0 32px 0" }}>
+            Direct stays. Zero fees.
+          </Text>
+        </Section>
 
-          {/* Content */}
-          <Section style={{ marginTop: 24 }}>{children}</Section>
+        {/* Content */}
+        {children}
 
-          {/* Footer */}
-          <Hr style={{ borderColor: "#E2E8F0", margin: "24px 0" }} />
-          <Section>
-            <Row>
-              <Column align="center">
-                <Text style={{ color: "#64748B", fontSize: 12, margin: 0 }}>© {new Date().getFullYear()} HiddyStays</Text>
-                <Text style={{ color: "#64748B", fontSize: 12, margin: 0 }}>hello@hiddystays.com</Text>
-              </Column>
-            </Row>
-          </Section>
-        </Container>
-      </Body>
-    </Tailwind>
+        {/* Footer */}
+        <Hr style={{ borderColor: "#e5e7eb", margin: "32px 0 24px 0" }} />
+        <Text style={{ color: "#9ca3af", fontSize: "12px", textAlign: "center", margin: "0" }}>
+          © {new Date().getFullYear()} HiddyStays • hello@hiddystays.com
+        </Text>
+      </Container>
+    </Body>
   </Html>
 );
 
@@ -119,97 +112,50 @@ export const BookingConfirmationEmail = ({
       title="Booking Confirmed!"
       preview={`Your stay at ${propertyTitle} is confirmed`}
     >
-      <Heading style={{ color: textMain, fontSize: 20, fontWeight: 800, margin: 0 }}>
-        Booking confirmed
+      <Heading style={{ color: "#111827", fontSize: "20px", fontWeight: "600", margin: "0 0 16px 0" }}>
+        Booking Confirmed
       </Heading>
 
-      <Text style={{ color: textMuted, fontSize: 14 }}>
-        Hi {guestName}, your booking at <strong>{propertyTitle}</strong> is confirmed.
+      <Text style={{ color: "#374151", fontSize: "16px", margin: "0 0 24px 0" }}>
+        Hi {guestName}, your booking is confirmed for <strong>{propertyTitle}</strong>.
       </Text>
 
-      <Section style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, margin: '16px 0' }}>
-        <Heading style={{ color: textMain, fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>
-          Booking details
-        </Heading>
-
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Property:</Text>
-          </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">
-              {propertyTitle}
-            </Text>
-          </Column>
-        </Row>
-
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Check-in:</Text>
-          </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">
-              {checkInDate}
-            </Text>
-          </Column>
-        </Row>
-
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Check-out:</Text>
-          </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">
-              {checkOutDate}
-            </Text>
-          </Column>
-        </Row>
-
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Guests:</Text>
-          </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">
-              {guests}
-            </Text>
-          </Column>
-        </Row>
-
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Total:</Text>
-          </Column>
-          <Column>
-            <Text style={{ color: brand, fontSize: 16, fontWeight: 700, margin: 0 }}>
-              ${totalAmount}
-            </Text>
-          </Column>
-        </Row>
-
-        <Row>
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Booking ID:</Text>
-          </Column>
-          <Column>
-            <Text className="text-sm font-mono text-gray-900 m-0">
-              #{bookingId}
-            </Text>
-          </Column>
-        </Row>
+      <Section style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '24px', margin: '24px 0' }}>
+        <Text style={{ color: "#111827", fontSize: "16px", fontWeight: "600", margin: "0 0 16px 0" }}>
+          Booking Details
+        </Text>
+        
+        <Text style={{ color: "#374151", fontSize: "14px", margin: "8px 0" }}>
+          <strong>Property:</strong> {propertyTitle}
+        </Text>
+        <Text style={{ color: "#374151", fontSize: "14px", margin: "8px 0" }}>
+          <strong>Check-in:</strong> {checkInDate}
+        </Text>
+        <Text style={{ color: "#374151", fontSize: "14px", margin: "8px 0" }}>
+          <strong>Check-out:</strong> {checkOutDate}
+        </Text>
+        <Text style={{ color: "#374151", fontSize: "14px", margin: "8px 0" }}>
+          <strong>Guests:</strong> {guests}
+        </Text>
+        <Text style={{ color: "#374151", fontSize: "14px", margin: "8px 0" }}>
+          <strong>Total:</strong> ${totalAmount}
+        </Text>
+        <Text style={{ color: "#6b7280", fontSize: "12px", margin: "16px 0 0 0" }}>
+          Booking ID: {bookingId}
+        </Text>
       </Section>
 
-      <Section className="text-center my-8">
+      <Section style={{ textAlign: "center", margin: "32px 0" }}>
         <Button
-          style={{ backgroundColor: brand, color: '#FFFFFF', padding: '10px 16px', borderRadius: 10, fontWeight: 600, textDecoration: 'none' }}
+          style={{ backgroundColor: "#111827", color: "#ffffff", padding: "12px 24px", borderRadius: "6px", fontWeight: "600", textDecoration: "none" }}
           href={`${baseUrl}/bookings/${bookingId}`}
         >
-          View booking
+          View Booking
         </Button>
       </Section>
 
-      <Text style={{ color: textMuted, fontSize: 14 }}>
-        Need help? Contact support@hiddystays.com
+      <Text style={{ color: "#6b7280", fontSize: "14px", margin: "24px 0 0 0" }}>
+        Questions? Reply to this email or contact hello@hiddystays.com
       </Text>
     </BaseTemplate>
   );
@@ -468,61 +414,142 @@ export const BookingCancellationEmail = ({
   bookingId,
 }: EmailTemplateProps) => {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   return (
     <BaseTemplate
-      title="Booking Cancelled"
+      title="Booking Cancelled - We're Sorry to See You Go"
       preview={`Your booking at ${propertyTitle} has been cancelled`}
     >
-      <Heading style={{ color: textMain, fontSize: 20, fontWeight: 800, margin: 0 }}>Booking cancelled</Heading>
+      <Heading style={{ color: textMain, fontSize: 24, fontWeight: 800, margin: '0 0 16px 0' }}>
+        Booking Cancelled
+      </Heading>
 
-      <Text className="text-base text-gray-700 leading-6">
-        Hi {guestName}, your booking for <strong>{propertyTitle}</strong> has been cancelled.
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: '24px', margin: '0 0 20px 0' }}>
+        Hi {guestName},
       </Text>
 
-      <Section style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: 12, padding: 16, margin: '16px 0' }}>
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Check-in:</Text>
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: '24px', margin: '0 0 24px 0' }}>
+        We're sorry to confirm that your booking for <strong>{propertyTitle}</strong> has been cancelled. 
+        We understand that plans can change, and we're here to help make your next booking experience even better.
+      </Text>
+
+      <Section style={{ 
+        backgroundColor: '#F9FAFB', 
+        border: '2px solid #E5E7EB', 
+        borderRadius: 12, 
+        padding: 20, 
+        margin: '24px 0' 
+      }}>
+        <Heading style={{ color: '#111827', fontSize: 18, fontWeight: 600, margin: '0 0 16px 0' }}>
+          Cancelled Booking Details
+        </Heading>
+        
+        <Row style={{ marginBottom: 12 }}>
+          <Column style={{ width: '40%' }}>
+            <Text style={{ fontSize: 14, color: '#6B7280', margin: 0, fontWeight: 500 }}>Property:</Text>
           </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">{checkInDate}</Text>
+          <Column style={{ width: '60%' }}>
+            <Text style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>{propertyTitle}</Text>
           </Column>
         </Row>
-        <Row className="mb-2">
-          <Column>
-            <Text className="text-sm text-gray-600 m-0">Check-out:</Text>
+        
+        <Row style={{ marginBottom: 12 }}>
+          <Column style={{ width: '40%' }}>
+            <Text style={{ fontSize: 14, color: '#6B7280', margin: 0, fontWeight: 500 }}>Check-in:</Text>
           </Column>
-          <Column>
-            <Text className="text-sm font-semibold text-gray-900 m-0">{checkOutDate}</Text>
+          <Column style={{ width: '60%' }}>
+            <Text style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>{formatDate(checkInDate)}</Text>
           </Column>
         </Row>
-        {typeof refundAmount !== "undefined" && (
-          <Row className="mb-2">
-            <Column>
-              <Text className="text-sm text-gray-600 m-0">Refund:</Text>
+        
+        <Row style={{ marginBottom: 12 }}>
+          <Column style={{ width: '40%' }}>
+            <Text style={{ fontSize: 14, color: '#6B7280', margin: 0, fontWeight: 500 }}>Check-out:</Text>
+          </Column>
+          <Column style={{ width: '60%' }}>
+            <Text style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>{formatDate(checkOutDate)}</Text>
+          </Column>
+        </Row>
+
+        {typeof refundAmount !== "undefined" && refundAmount > 0 && (
+          <Row style={{ marginBottom: 12 }}>
+            <Column style={{ width: '40%' }}>
+              <Text style={{ fontSize: 14, color: '#6B7280', margin: 0, fontWeight: 500 }}>Refund Amount:</Text>
             </Column>
-            <Column>
-              <Text className="text-sm font-semibold text-gray-900 m-0">${'{'}refundAmount{'}'}{refundPercentage ? ` (${refundPercentage}%)` : ""}</Text>
+            <Column style={{ width: '60%' }}>
+              <Text style={{ fontSize: 14, fontWeight: 600, color: '#059669', margin: 0 }}>
+                ${refundAmount.toFixed(2)}{refundPercentage ? ` (${refundPercentage}% refund)` : ""}
+              </Text>
             </Column>
           </Row>
         )}
+
         {cancellationReason && (
           <Row>
-            <Column>
-              <Text className="text-sm text-gray-600 m-0">Reason:</Text>
+            <Column style={{ width: '40%' }}>
+              <Text style={{ fontSize: 14, color: '#6B7280', margin: 0, fontWeight: 500 }}>Reason:</Text>
             </Column>
-            <Column>
-              <Text className="text-sm font-semibold text-gray-900 m-0">{cancellationReason}</Text>
+            <Column style={{ width: '60%' }}>
+              <Text style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>{cancellationReason}</Text>
             </Column>
           </Row>
         )}
       </Section>
 
-      <Section style={{ textAlign: 'center', margin: '20px 0' }}>
-        <Button style={{ backgroundColor: brand, color: '#FFFFFF', padding: '10px 16px', borderRadius: 10, fontWeight: 600, textDecoration: 'none' }} href={`${baseUrl}/properties`}>
-          Browse other stays
+      {typeof refundAmount !== "undefined" && refundAmount > 0 && (
+        <Section style={{ 
+          backgroundColor: '#ECFDF5', 
+          border: '1px solid #A7F3D0', 
+          borderRadius: 8, 
+          padding: 16, 
+          margin: '20px 0' 
+        }}>
+          <Text style={{ fontSize: 14, color: '#065F46', margin: 0, fontWeight: 500 }}>
+            💰 <strong>Refund Processing:</strong> Your refund of ${refundAmount.toFixed(2)} will be processed within 3-5 business days 
+            and will appear on your original payment method.
+          </Text>
+        </Section>
+      )}
+
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: '24px', margin: '24px 0' }}>
+        We'd love to help you find another perfect stay! Browse our collection of unique properties and discover your next adventure.
+      </Text>
+
+      <Section style={{ textAlign: 'center', margin: '32px 0' }}>
+        <Button 
+          style={{ 
+            backgroundColor: brand, 
+            color: '#FFFFFF', 
+            padding: '12px 24px', 
+            borderRadius: 8, 
+            fontWeight: 600, 
+            textDecoration: 'none',
+            fontSize: 16
+          }} 
+          href={`${baseUrl}/properties`}
+        >
+          🏠 Browse Available Properties
         </Button>
       </Section>
+
+      <Hr style={{ margin: '32px 0', borderColor: '#E5E7EB' }} />
+
+      <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: '20px', margin: '16px 0' }}>
+        Need help with your next booking or have questions about this cancellation? 
+        <Link href={`${baseUrl}/contact`} style={{ color: brand, textDecoration: 'none' }}>Contact our support team</Link> - we're here to help!
+      </Text>
+
+      <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: '20px', margin: 0 }}>
+        Thank you for choosing HiddyStays. We hope to welcome you back soon!
+      </Text>
     </BaseTemplate>
   );
 };

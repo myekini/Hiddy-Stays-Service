@@ -63,18 +63,22 @@ interface CalendarManagementProps {
   propertyId: string;
   isOpen: boolean;
   onClose: () => void;
+  properties?: Array<{ id: string; title: string; address: string }>;
 }
 
 export function CalendarManagement({
-  propertyId,
+  propertyId: initialPropertyId,
   isOpen,
   onClose,
+  properties = [],
 }: CalendarManagementProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarData, setCalendarData] = useState<CalendarDay[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState(initialPropertyId);
+  const propertyId = selectedPropertyId;
   const [selectedDates, setSelectedDates] = useState<{
     start: string | null;
     end: string | null;
@@ -85,6 +89,10 @@ export function CalendarManagement({
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
+
+  useEffect(() => {
+    setSelectedPropertyId(initialPropertyId);
+  }, [initialPropertyId]);
 
   useEffect(() => {
     if (isOpen && propertyId) {
@@ -331,44 +339,56 @@ export function CalendarManagement({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="pb-6">
+          <DialogTitle className="text-2xl font-semibold text-slate-900 tracking-tight">
             Calendar Management
           </DialogTitle>
+          <p className="text-slate-600 mt-2">
+            Manage your property availability, block dates, and view upcoming bookings
+          </p>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Calendar Navigation */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigateMonth("prev")}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <h3 className="text-lg font-semibold">
-                {format(currentMonth, "MMMM yyyy")}
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigateMonth("next")}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateMonth("prev")}
+                  className="hover:bg-slate-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {format(currentMonth, "MMMM yyyy")}
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateMonth("next")}
+                  className="hover:bg-slate-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentMonth(new Date())}
-              >
-                Today
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(new Date())}
+                  className="hover:bg-slate-50"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  Today
+                </Button>
+                {loading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></div>
+                )}
+              </div>
             </div>
           </div>
 

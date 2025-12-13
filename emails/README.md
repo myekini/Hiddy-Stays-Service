@@ -2,6 +2,8 @@
 
 Professional email templates built with React Email and Resend for the HiddyStays platform.
 
+> **See also:** [Template Specifications](./TEMPLATE_SPECIFICATIONS.md) - Detailed design specifications and requirements
+
 ## 📧 Available Email Templates
 
 ### 1. **Booking Confirmation** (`BookingConfirmation.tsx`)

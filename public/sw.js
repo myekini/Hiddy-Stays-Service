@@ -5,7 +5,9 @@ const DYNAMIC_CACHE = 'bookdirect-dynamic-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
-  '/placeholder.svg',
+  '/icons/light_pwa_192x192.png',
+  '/icons/light_pwa_512x512.png',
+  '/icons/light_favicon.ico',
   '/src/assets/hero-property.jpg',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cal+Sans:wght@400;600&display=swap'
 ];
@@ -32,6 +34,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  const url = event.request.url;
+  if (url.includes('/_next/') || url.includes('hot-update') || url.includes('__nextjs')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((cachedResponse) => {
@@ -49,13 +56,14 @@ self.addEventListener('fetch', (event) => {
             const responseToCache = response.clone();
             const url = event.request.url;
 
-            // Cache API responses and assets
-            if (url.includes('/api/') || url.includes('.js') || url.includes('.css') || url.includes('.jpg') || url.includes('.png')) {
+            // Cache assets but NOT API responses (to ensure fresh data)
+            if (url.includes('.js') || url.includes('.css') || url.includes('.jpg') || url.includes('.png')) {
               caches.open(DYNAMIC_CACHE)
                 .then((cache) => {
                   cache.put(event.request, responseToCache);
                 });
             }
+            // Don't cache /api/ routes to ensure fresh data
 
             return response;
           })
@@ -117,7 +125,7 @@ async function syncBookings() {
           // Show success notification
           self.registration.showNotification('Booking Confirmed', {
             body: 'Your booking has been successfully processed!',
-            icon: '/placeholder.svg',
+            icon: '/icons/light_pwa_192x192.png',
             tag: 'booking-success'
           });
         }
@@ -167,9 +175,9 @@ function removePendingBooking(db, id) {
 // Push notification handling
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'New notification from BookDirect',
-    icon: '/placeholder.svg',
-    badge: '/placeholder.svg',
+    body: event.data ? event.data.text() : 'New notification from HiddyStays',
+    icon: '/icons/light_pwa_192x192.png',
+    badge: '/icons/light_pwa_96x96.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -179,17 +187,17 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore', 
         title: 'View Details',
-        icon: '/placeholder.svg'
+        icon: '/icons/light_pwa_96x96.png'
       },
       {
         action: 'close', 
         title: 'Close',
-        icon: '/placeholder.svg'
+        icon: '/icons/light_pwa_96x96.png'
       }
     ]
   };
 
   event.waitUntil(
-    self.registration.showNotification('BookDirect', options)
+    self.registration.showNotification('HiddyStays', options)
   );
 });

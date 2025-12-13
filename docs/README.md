@@ -28,6 +28,17 @@
 
 ## 📁 Documentation Structure
 
+### 📊 **Project Analysis** (`/project-analysis/`)
+
+Project analysis, cleanup documentation, and structure overview.
+
+| File                                                                         | Description                                                      | Audience           |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------ |
+| **[PROJECT_BREAKDOWN.md](project-analysis/PROJECT_BREAKDOWN.md)**            | Complete feature breakdown - All 12 features, APIs, testing     | All teams          |
+| **[PROJECT_STRUCTURE.md](project-analysis/PROJECT_STRUCTURE.md)**            | Clean project structure and organization                         | Developers         |
+| **[CLEANUP_SUMMARY.md](project-analysis/CLEANUP_SUMMARY.md)**                | Cleanup summary - What was done and findings                     | All teams          |
+| **[CLEANUP_PLAN.md](project-analysis/CLEANUP_PLAN.md)**                       | Cleanup plan and recommendations                                 | Developers         |
+
 ### 🏗️ **System Guides** (`/system-guides/`)
 
 Core system documentation and architecture overview.
@@ -53,6 +64,7 @@ Technical implementation details and advanced features.
 
 | File                                                                                     | Description                             | Audience              |
 | ---------------------------------------------------------------------------------------- | --------------------------------------- | --------------------- |
+| **[00-implementation-history.md](implementation-guides/00-implementation-history.md)**     | Historical implementation documentation | All developers        |
 | **[01-payment-system-basics.md](implementation-guides/01-payment-system-basics.md)**     | Core payment system implementation      | Backend developers    |
 | **[02-payment-system-advanced.md](implementation-guides/02-payment-system-advanced.md)** | Advanced payment features and webhooks  | Senior developers     |
 | **[03-booking-flow.md](implementation-guides/03-booking-flow.md)**                       | Complete booking process implementation | Full-stack developers |

@@ -155,12 +155,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if property is available
+    // Date overlap logic: Two ranges overlap if:
+    // new_check_in < existing_check_out AND existing_check_in < new_check_out
+    // In hotel bookings, check-out date is typically exclusive (you leave on that day)
+    // So a booking from Jan 1-5 means occupied Jan 1-4, available again on Jan 5
     const { data: existingBookings, error: availabilityError } = await supabase
       .from("bookings")
-      .select("id, check_in_date, check_out_date, status")
+      .select("id, check_in_date, check_out_date, status, guest_id")
       .eq("property_id", propertyId)
-      .in("status", ["pending", "confirmed"])
-      .or(`check_in_date.lte.${checkOut},check_out_date.gte.${checkIn}`);
+      .in("status", ["pending", "confirmed"]); // Only check active bookings, exclude cancelled/completed
 
     if (availabilityError) {
       console.error("Availability check error:", availabilityError);
@@ -173,10 +176,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (existingBookings && existingBookings.length > 0) {
-      const conflictingBooking = existingBookings[0];
-      const from = conflictingBooking?.check_in_date ?? checkIn;
-      const to = conflictingBooking?.check_out_date ?? checkOut;
+    // Check for date overlaps manually (more reliable than complex OR queries)
+    // Two date ranges overlap if: start1 < end2 AND start2 < end1
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    
+    const conflictingBookings = existingBookings?.filter((booking) => {
+      const existingCheckIn = new Date(booking.check_in_date);
+      const existingCheckOut = new Date(booking.check_out_date);
+      
+      // Check if ranges overlap: new booking starts before existing ends AND existing starts before new ends
+      // Note: check-out dates are typically exclusive in hotel systems
+      const overlaps = 
+        checkInDate < existingCheckOut && 
+        existingCheckIn < checkOutDate;
+      
+      return overlaps;
+    }) || [];
+
+    if (conflictingBookings.length > 0) {
+      const conflictingBooking = conflictingBookings[0];
+      const from = conflictingBooking.check_in_date;
+      const to = conflictingBooking.check_out_date;
+      
       return NextResponse.json(
         {
           error: "Property not available",
@@ -190,12 +212,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get profile ID if user is logged in
+    // guest_id must reference profiles.id, not auth.users.id
+    let profileId: string | null = null;
+    if (guestInfo.userId) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", guestInfo.userId)
+        .single();
+
+      if (profileError || !profile) {
+        console.warn(
+          `Profile not found for user_id: ${guestInfo.userId}. Creating guest booking.`
+        );
+        // Continue with guest booking (profileId remains null)
+      } else {
+        profileId = profile.id;
+      }
+    }
+
     // Create booking
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
         property_id: propertyId,
-        guest_id: guestInfo.userId || null, // Optional user ID if logged in
+        guest_id: profileId, // Use profile.id, not auth user.id
         host_id: property.host_id,
         check_in_date: checkIn,
         check_out_date: checkOut,
@@ -229,10 +271,20 @@ export async function POST(request: NextRequest) {
       }
 
       if (bookingError.code === "23503") {
+        // Foreign key constraint violation
+        const errorMessage = bookingError.details?.includes("guest_id")
+          ? "User profile not found. Please ensure you are logged in with a valid account."
+          : bookingError.details?.includes("host_id")
+          ? "Host profile not found for this property"
+          : bookingError.details?.includes("property_id")
+          ? "Property not found"
+          : "Invalid reference. Please check your booking details.";
+
         return NextResponse.json(
           {
             error: "Invalid reference",
-            message: "The property or host information is invalid",
+            message: errorMessage,
+            details: bookingError.details,
           },
           { status: 400 }
         );
@@ -297,13 +349,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send email notification to guest (booking confirmation)
+    // Send booking request email to guest (before payment)
     if (guestInfo.email) {
       try {
         const { unifiedEmailService } = await import(
           "@/lib/unified-email-service"
         );
-        await unifiedEmailService.sendBookingConfirmation({
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
+        await unifiedEmailService.sendBookingRequest({
           bookingId: booking.id,
           guestName: guestInfo.name,
           guestEmail: guestInfo.email,
@@ -313,6 +366,7 @@ export async function POST(request: NextRequest) {
           hostEmail: hostEmail || "",
           propertyTitle: propertyDetails?.title || "Property",
           propertyLocation: propertyDetails?.address || "",
+          paymentUrl: `${baseUrl}/bookings`,
           checkInDate: new Date(checkIn).toLocaleDateString("en-US", {
             weekday: "long",
             year: "numeric",

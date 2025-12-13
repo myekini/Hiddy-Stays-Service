@@ -54,16 +54,15 @@ function invalidateProfileCache(userId: string): void {
 // Export for use by API routes
 export { invalidateProfileCache };
 
-// Auto-cleanup of expired cache entries every 10 minutes
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [userId, cached] of __profileCache.entries()) {
-      if (now - cached.timestamp > CACHE_TTL) {
-        __profileCache.delete(userId);
-      }
+// Auto-cleanup of expired cache entries (runs on each request instead of interval)
+// Note: setInterval can cause issues in edge runtime, so cleanup is done on-demand
+function cleanupExpiredCacheEntries() {
+  const now = Date.now();
+  for (const [userId, cached] of __profileCache.entries()) {
+    if (now - cached.timestamp > CACHE_TTL) {
+      __profileCache.delete(userId);
     }
-  }, 10 * 60 * 1000);
+  }
 }
 
 export async function middleware(req: NextRequest) {
@@ -76,7 +75,8 @@ export async function middleware(req: NextRequest) {
   }
 
   // Public pages that don't require authentication
-  const publicPaths = ["/", "/properties", "/property"];
+  // Note: /booking paths must be accessible for payment flows to work
+  const publicPaths = ["/", "/properties", "/property", "/booking"];
   const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
   const isAuthPath = pathname.startsWith("/auth");
 
@@ -103,8 +103,15 @@ export async function middleware(req: NextRequest) {
 
   // Quick check: if accessing public page, skip Supabase call (big performance boost)
   if (isPublicPath && !isAuthPath) {
+    // Clean up expired cache entries periodically (every ~100 requests on public pages)
+    if (Math.random() < 0.01) {
+      cleanupExpiredCacheEntries();
+    }
     return res;
   }
+
+  // Clean up expired cache entries periodically
+  cleanupExpiredCacheEntries();
 
   // Only create Supabase client when needed for auth-related routes
   const supabase = createServerClient(

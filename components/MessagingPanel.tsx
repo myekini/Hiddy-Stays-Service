@@ -24,6 +24,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
+import { useRealtimeConversations } from "@/hooks/useRealtimeConversations";
+import type { Message as RealtimeMessage } from "@/hooks/useRealtimeMessages";
+import type { Conversation as RealtimeConversation } from "@/hooks/useRealtimeConversations";
 
 interface MessagingPanelProps {
   propertyId?: string;
@@ -32,38 +36,9 @@ interface MessagingPanelProps {
   onClose: () => void;
 }
 
-interface Conversation {
-  id: string;
-  property_title: string;
-  property_address: string;
-  property_images: string[];
-  guest_id: string;
-  host_id: string;
-  guest_first_name: string;
-  guest_last_name: string;
-  guest_avatar: string;
-  host_first_name: string;
-  host_last_name: string;
-  host_avatar: string;
-  last_message_content: string;
-  last_message_at: string;
-  guest_unread_count: number;
-  host_unread_count: number;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  sender_id: string;
-  recipient_id: string;
-  created_at: string;
-  read: boolean;
-  sender: {
-    first_name: string;
-    last_name: string;
-    avatar_url: string;
-  };
-}
+// Use types from hooks
+type Conversation = RealtimeConversation;
+type Message = RealtimeMessage;
 
 export function MessagingPanel({
   propertyId,
@@ -73,26 +48,50 @@ export function MessagingPanel({
 }: MessagingPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (isOpen && user) {
-      loadConversations();
-    }
-  }, [isOpen, user]);
+  // Use realtime hooks for conversations and messages
+  const {
+    conversations,
+    loading: conversationsLoading,
+    error: conversationsError,
+    profileId: conversationsProfileId,
+    refreshConversations,
+  } = useRealtimeConversations({
+    userId: user?.id || null,
+    onNewConversation: (conv) => {
+      console.log("New conversation received:", conv);
+    },
+    onConversationUpdate: (conv) => {
+      console.log("Conversation updated:", conv);
+    },
+  });
 
-  useEffect(() => {
-    if (selectedConversation) {
-      loadMessages(selectedConversation.id);
-    }
-  }, [selectedConversation]);
+  const {
+    messages,
+    loading: messagesLoading,
+    error: messagesError,
+    profileId: messagesProfileId,
+    refreshMessages,
+  } = useRealtimeMessages({
+    conversationId: selectedConversation?.id || null,
+    userId: user?.id || null,
+    onNewMessage: (msg) => {
+      console.log("New message received:", msg);
+      // Auto-scroll to bottom when new message arrives
+      setTimeout(() => scrollToBottom(), 100);
+    },
+    onMessageUpdate: (msg) => {
+      console.log("Message updated:", msg);
+    },
+  });
+
+  // Use the profile ID from either hook
+  const currentProfileId = messagesProfileId || conversationsProfileId;
 
   useEffect(() => {
     scrollToBottom();
@@ -102,54 +101,22 @@ export function MessagingPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const loadConversations = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/messages");
-
-      if (response.ok) {
-        const data = await response.json();
-        setConversations(data.conversations || []);
-      }
-    } catch (error) {
-      console.error("Error loading conversations:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load conversations",
-        variant: "destructive",
+  // Mark messages as read when conversation is selected
+  useEffect(() => {
+    if (selectedConversation && messages.length > 0) {
+      // Mark messages as read via API
+      fetch("/api/messages", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: selectedConversation.id,
+          mark_all_read: true,
+        }),
+      }).catch((error) => {
+        console.error("Error marking messages as read:", error);
       });
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const loadMessages = async (conversationId: string) => {
-    try {
-      const response = await fetch(
-        `/api/messages?conversation_id=${conversationId}`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data.messages || []);
-
-        // Mark messages as read
-        await fetch("/api/messages", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            mark_all_read: true,
-          }),
-        });
-
-        // Refresh conversations to update unread counts
-        loadConversations();
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error);
-    }
-  };
+  }, [selectedConversation, messages.length]);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
@@ -172,17 +139,31 @@ export function MessagingPanel({
 
         // If this was a new conversation
         if (!selectedConversation && data.conversation_id) {
-          await loadConversations();
-          const newConv = conversations.find(
-            (c) => c.id === data.conversation_id
-          );
-          if (newConv) setSelectedConversation(newConv);
+          // Refresh conversations to get the new one
+          await refreshConversations();
+          // Find and select the new conversation
+          setTimeout(() => {
+            const newConv = conversations.find(
+              (c) => c.id === data.conversation_id
+            );
+            if (newConv) {
+              setSelectedConversation(newConv);
+            } else {
+              // If not found yet, try refreshing again
+              refreshConversations().then(() => {
+                const updatedConv = conversations.find(
+                  (c) => c.id === data.conversation_id
+                );
+                if (updatedConv) setSelectedConversation(updatedConv);
+              });
+            }
+          }, 200);
         }
 
-        // Add message to list
-        setMessages((prev) => [...prev, data.message]);
+        // Message will be added automatically via realtime subscription
+        // But we can clear the input immediately
         setNewMessage("");
-        scrollToBottom();
+        // Scroll will happen automatically when new message arrives via realtime
       } else {
         throw new Error("Failed to send message");
       }
@@ -199,8 +180,8 @@ export function MessagingPanel({
   };
 
   const getUserInfo = (conversation: Conversation) => {
-    // Determine if current user is guest or host
-    const isGuest = user?.id === conversation.guest_id;
+    // Determine if current user is guest or host based on profile ID
+    const isGuest = currentProfileId === conversation.guest_id;
 
     return {
       name: isGuest
@@ -245,9 +226,13 @@ export function MessagingPanel({
             </div>
 
             <ScrollArea className="flex-1">
-              {loading ? (
+              {conversationsLoading ? (
                 <div className="p-4 text-center text-slate-600">
                   Loading...
+                </div>
+              ) : conversationsError ? (
+                <div className="p-4 text-center text-red-600">
+                  Error loading conversations
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="p-8 text-center">
@@ -258,7 +243,7 @@ export function MessagingPanel({
                 conversations.map((conversation) => {
                   const info = getUserInfo(conversation);
                   const unreadCount =
-                    user?.id === conversation.guest_id
+                    currentProfileId === conversation.guest_id
                       ? conversation.guest_unread_count
                       : conversation.host_unread_count;
 
@@ -344,59 +329,70 @@ export function MessagingPanel({
 
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
-                    {messages.map((message, index) => {
-                      const isOwnMessage = message.sender_id === user?.id;
-                      const showAvatar =
-                        index === 0 ||
-                        messages[index - 1]?.sender_id !== message.sender_id;
+                  {messagesLoading ? (
+                    <div className="p-4 text-center text-slate-600">
+                      Loading messages...
+                    </div>
+                  ) : messagesError ? (
+                    <div className="p-4 text-center text-red-600">
+                      Error loading messages
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((message, index) => {
+                        // Compare profile IDs, not user IDs
+                        const isOwnMessage = message.sender_id === currentProfileId;
+                        const showAvatar =
+                          index === 0 ||
+                          messages[index - 1]?.sender_id !== message.sender_id;
 
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex ${
-                            isOwnMessage ? "justify-end" : "justify-start"
-                          }`}
-                        >
+                        return (
                           <div
-                            className={`flex gap-2 max-w-[70%] ${
-                              isOwnMessage ? "flex-row-reverse" : "flex-row"
+                            key={message.id}
+                            className={`flex ${
+                              isOwnMessage ? "justify-end" : "justify-start"
                             }`}
                           >
-                            {showAvatar ? (
-                              <Avatar className="w-8 h-8">
-                                <AvatarImage src={message.sender.avatar_url} />
-                                <AvatarFallback>
-                                  {message.sender.first_name[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                            ) : (
-                              <div className="w-8" />
-                            )}
-                            <div>
-                              <div
-                                className={`rounded-2xl px-4 py-2 ${
-                                  isOwnMessage
-                                    ? "bg-blue-500 text-white"
-                                    : "bg-slate-100 text-slate-900"
-                                }`}
-                              >
-                                <p className="text-sm">{message.content}</p>
+                            <div
+                              className={`flex gap-2 max-w-[70%] ${
+                                isOwnMessage ? "flex-row-reverse" : "flex-row"
+                              }`}
+                            >
+                              {showAvatar && message.sender ? (
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={message.sender.avatar_url} />
+                                  <AvatarFallback>
+                                    {message.sender.first_name?.[0] || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="w-8" />
+                              )}
+                              <div>
+                                <div
+                                  className={`rounded-2xl px-4 py-2 ${
+                                    isOwnMessage
+                                      ? "bg-blue-500 text-white"
+                                      : "bg-slate-100 text-slate-900"
+                                  }`}
+                                >
+                                  <p className="text-sm">{message.content}</p>
+                                </div>
+                                <p
+                                  className={`text-xs text-slate-500 mt-1 ${
+                                    isOwnMessage ? "text-right" : "text-left"
+                                  }`}
+                                >
+                                  {formatTime(message.created_at)}
+                                </p>
                               </div>
-                              <p
-                                className={`text-xs text-slate-500 mt-1 ${
-                                  isOwnMessage ? "text-right" : "text-left"
-                                }`}
-                              >
-                                {formatTime(message.created_at)}
-                              </p>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </ScrollArea>
 
                 {/* Input */}

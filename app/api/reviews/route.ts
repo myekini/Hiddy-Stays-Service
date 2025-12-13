@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        property:properties!reviews_property_id_fkey(
+        property:properties(
           id,
           title,
           address
@@ -74,16 +74,10 @@ export async function GET(request: NextRequest) {
           last_name,
           avatar_url
         ),
-        host:profiles!reviews_host_id_fkey(
+        host:profiles(
           id,
           first_name,
           last_name
-        ),
-        review_images!review_images_review_id_fkey(
-          id,
-          image_url,
-          caption,
-          order_index
         )
       `
       )
@@ -97,27 +91,121 @@ export async function GET(request: NextRequest) {
     query = query.range(offset, offset + limit - 1);
 
     const { data: reviews, error } = await query;
-
+    
     if (error) {
       console.error("Error fetching reviews:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch reviews" },
-        { status: 500 }
+      
+      // Handle specific foreign key relationship errors
+      if (error.code === "PGRST200" || error.message?.includes("relationship")) {
+        // Fallback to a simpler query without foreign key hints
+        let fallbackQuery = supabase
+          .from("reviews")
+          .select("*")
+          .eq("status", status)
+          .order("created_at", { ascending: false });
+          
+        if (propertyId) {
+          fallbackQuery = fallbackQuery.eq("property_id", propertyId);
+        }
+        
+        const { data: fallbackReviews, error: fallbackError } = await fallbackQuery.range(offset, offset + limit - 1);
+        
+        if (fallbackError) {
+          throw fallbackError;
+        }
+        
+        // Manually fetch related data if needed
+        const reviewsWithRelations = await Promise.all(
+          (fallbackReviews || []).map(async (review) => {
+            // Fetch related data manually
+            const [property, guest, host, images] = await Promise.all([
+              supabase.from("properties").select("id, title, address").eq("id", review.property_id).single(),
+              supabase.from("profiles").select("id, first_name, last_name, avatar_url").eq("id", review.guest_id).single(),
+              supabase.from("profiles").select("id, first_name, last_name").eq("id", review.host_id).single(),
+              supabase.from("review_images").select("id, image_url, caption, order_index").eq("review_id", review.id),
+            ]);
+            
+            return {
+              ...review,
+              property: property.data,
+              guest: guest.data,
+              host: host.data,
+              review_images: images.data || [],
+            };
+          })
+        );
+        
+        return NextResponse.json({
+          success: true,
+          reviews: reviewsWithRelations,
+          pagination: {
+            limit,
+            offset,
+            total: reviewsWithRelations.length,
+          },
+        });
+      }
+      
+      throw error;
+    }
+
+    // Fetch review_images separately if not included in the query
+    if (reviews && reviews.length > 0) {
+      const reviewsWithImages = await Promise.all(
+        reviews.map(async (review: any) => {
+          if (review.review_images === undefined) {
+            const { data: images } = await supabase
+              .from("review_images")
+              .select("id, image_url, caption, order_index")
+              .eq("review_id", review.id)
+              .order("order_index");
+            
+            return {
+              ...review,
+              review_images: images || [],
+            };
+          }
+          return review;
+        })
       );
+
+      return NextResponse.json({
+        reviews: reviewsWithImages,
+        pagination: {
+          limit,
+          offset,
+          hasMore: reviews.length === limit,
+        },
+      });
     }
 
     return NextResponse.json({
-      reviews,
+      reviews: reviews || [],
       pagination: {
         limit,
         offset,
-        hasMore: reviews.length === limit,
+        hasMore: false,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Reviews fetch error:", error);
+    
+    // Provide helpful error messages
+    if (error?.code === "PGRST200" || error?.message?.includes("relationship")) {
+      return NextResponse.json(
+        { 
+          error: "Failed to fetch reviews due to database schema issue",
+          details: process.env.NODE_ENV === "development" ? error?.message : undefined
+        },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Failed to fetch reviews. Please try again.",
+        details: process.env.NODE_ENV === "development" ? error?.message : undefined
+      },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import ReactCrop, {
   centerCrop,
   makeAspectCrop,
@@ -77,6 +78,24 @@ import ReactCrop, {
   PixelCrop,
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+
+import {
+  DragEndEvent,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ImageUploadProps {
   propertyId?: string;
@@ -194,6 +213,16 @@ export function PropertyImageUpload({
   const [imgRef, setImgRef] = useState<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const onImagesUploadedRef = useRef(onImagesUploaded);
+
+  useEffect(() => {
+    onImagesUploadedRef.current = onImagesUploaded;
+  }, [onImagesUploaded]);
+
+  useEffect(() => {
+    onImagesUploadedRef.current(uploadedImages);
+  }, [uploadedImages]);
+
   const onImageLoad = useCallback((img: HTMLImageElement) => {
     setImgRef(img);
     const { width, height } = img;
@@ -279,7 +308,14 @@ export function PropertyImageUpload({
       return;
     }
 
-    // Process first image for cropping
+    // If the user selected multiple files, upload them in one batch for speed.
+    // Cropping is only applied for single-file selection.
+    if (filesToProcess.length > 1) {
+      void handleUpload(filesToProcess);
+      return;
+    }
+
+    // Process single image for cropping
     const firstFile = filesToProcess[0];
     if (!firstFile) return;
     const reader = new FileReader();
@@ -291,16 +327,37 @@ export function PropertyImageUpload({
   };
 
   const handleCropComplete = async () => {
-    if (!imgRef || !completedCrop) return;
+    if (!imgRef || !completedCrop) {
+      toast({
+        title: "Error",
+        description: "Please select a crop area first",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      setUploading(true);
+      setUploadProgress(0);
+
       const croppedFile = await getCroppedImg(
         imgRef,
         completedCrop,
         `cropped_${Date.now()}.jpg`
       );
 
-      await uploadImage(croppedFile);
+      setUploadProgress(50);
+      const imageUrl = await uploadImage(croppedFile);
+      setUploadProgress(100);
+
+      const newImages = [...uploadedImages, imageUrl];
+      setUploadedImages(newImages);
+
+      toast({
+        title: "Success! 🎉",
+        description: "Image cropped and uploaded successfully",
+      });
+
       setShowCropModal(false);
       setCurrentImage(null);
       setCrop(undefined);
@@ -309,15 +366,54 @@ export function PropertyImageUpload({
       console.error("Error cropping image:", error);
       toast({
         title: "Error",
-        description: "Failed to crop image",
+        description: "Failed to crop and upload image",
         variant: "destructive",
       });
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
     }
   };
 
   const uploadImage = async (file: File): Promise<string> => {
     if (!user?.id) {
       throw new Error("User not authenticated");
+    }
+
+    // If we have a real propertyId, upload via the property images endpoint
+    // so the image is persisted into the property_images table.
+    if (propertyId && propertyId !== "temp") {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("No authentication token available");
+      }
+
+      const formData = new FormData();
+      formData.append("images", file);
+
+      const response = await fetch(`/api/properties/${propertyId}/images/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || error.message || "Failed to upload image");
+      }
+
+      const result = await response.json();
+      const url = result?.uploaded?.[0]?.url;
+      if (!url) {
+        throw new Error("Upload succeeded but no image URL was returned");
+      }
+
+      return url;
     }
 
     const formData = new FormData();
@@ -353,21 +449,63 @@ export function PropertyImageUpload({
     setUploadProgress(0);
 
     try {
-      const uploadPromises = files.map(async (file, index) => {
-        const imageUrl = await uploadImage(file);
-        setUploadProgress(((index + 1) / files.length) * 100);
-        return imageUrl;
-      });
+      // If we have a real propertyId, use the batch upload endpoint.
+      if (propertyId && propertyId !== "temp") {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      const uploadedUrls = await Promise.all(uploadPromises);
-      const newImages = [...uploadedImages, ...uploadedUrls];
-      setUploadedImages(newImages);
-      onImagesUploaded(newImages);
+        if (!session?.access_token) {
+          throw new Error("No authentication token available");
+        }
 
-      toast({
-        title: "Success! 🎉",
-        description: `${uploadedUrls.length} image(s) uploaded successfully`,
-      });
+        const formData = new FormData();
+        files.forEach((file) => formData.append("images", file));
+
+        const response = await fetch(`/api/properties/${propertyId}/images/upload`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.error || error.message || "Failed to upload images");
+        }
+
+        const result = await response.json();
+        const uploadedUrls = (result?.uploaded || [])
+          .map((u: any) => u?.url)
+          .filter((u: any) => typeof u === "string" && u.trim() !== "");
+
+        setUploadProgress(100);
+
+        const newImages = [...uploadedImages, ...uploadedUrls];
+        setUploadedImages(newImages);
+
+        toast({
+          title: "Success! 🎉",
+          description: `${uploadedUrls.length} image(s) uploaded successfully`,
+        });
+      } else {
+        // Fallback: temp uploads (no property yet) -> upload individually.
+        const uploadPromises = files.map(async (file, index) => {
+          const imageUrl = await uploadImage(file);
+          setUploadProgress(((index + 1) / files.length) * 100);
+          return imageUrl;
+        });
+
+        const uploadedUrls = await Promise.all(uploadPromises);
+        const newImages = [...uploadedImages, ...uploadedUrls];
+        setUploadedImages(newImages);
+
+        toast({
+          title: "Success! 🎉",
+          description: `${uploadedUrls.length} image(s) uploaded successfully`,
+        });
+      }
     } catch (error) {
       console.error("Upload error:", error);
       toast({
@@ -385,7 +523,6 @@ export function PropertyImageUpload({
   const removeImage = (index: number) => {
     const newImages = uploadedImages.filter((_, i) => i !== index);
     setUploadedImages(newImages);
-    onImagesUploaded(newImages);
   };
 
   const reorderImages = (fromIndex: number, toIndex: number) => {
@@ -394,7 +531,114 @@ export function PropertyImageUpload({
     if (removed === undefined) return;
     newImages.splice(toIndex, 0, removed);
     setUploadedImages(newImages);
-    onImagesUploaded(newImages);
+  };
+
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId !== overId) {
+      setUploadedImages((items) => {
+        const oldIndex = items.indexOf(activeId);
+        const newIndex = items.indexOf(overId);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        return newItems;
+      });
+    }
+  };
+
+  const SortableImage = ({
+    imageUrl,
+    index,
+    removeImage,
+  }: {
+    imageUrl: string;
+    index: number;
+    removeImage: (index: number) => void;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+    } = useSortable({ id: imageUrl });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <motion.div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        className="relative group"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+      >
+        <div className="aspect-square rounded-lg overflow-hidden border-2 border-neutral-200">
+          <img
+            src={imageUrl}
+            alt={`Property ${index + 1}`}
+            className="w-full h-full object-cover"
+          />
+          {index === 0 && (
+            <div className="absolute top-2 left-2">
+              <Badge className="bg-green-500">
+                <Star className="w-3 h-3 mr-1" />
+                Primary
+              </Badge>
+            </div>
+          )}
+        </div>
+
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  {...listeners}
+                  className="cursor-grab"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Drag to reorder</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => removeImage(index)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Remove image</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </motion.div>
+    );
   };
 
   return (
@@ -545,69 +789,41 @@ export function PropertyImageUpload({
             )}
 
             {/* Image Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              <AnimatePresence>
-                {uploadedImages.map((imageUrl, index) => (
-                  <motion.div
-                    key={imageUrl}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="relative group"
-                  >
-                    <div className="aspect-square rounded-lg overflow-hidden border-2 border-neutral-200">
-                      <img
-                        src={imageUrl}
-                        alt={`Property ${index + 1}`}
-                        className="w-full h-full object-cover"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={uploadedImages} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <AnimatePresence>
+                    {uploadedImages.map((imageUrl, index) => (
+                      <SortableImage
+                        key={imageUrl}
+                        imageUrl={imageUrl}
+                        index={index}
+                        removeImage={removeImage}
                       />
-                      {index === 0 && (
-                        <div className="absolute top-2 left-2">
-                          <Badge className="bg-green-500">
-                            <Star className="w-3 h-3 mr-1" />
-                            Primary
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
+                    ))}
+                  </AnimatePresence>
 
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => removeImage(index)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Remove image</p>
-                          </TooltipContent>
-                        </Tooltip>
+                  {/* Add More Button */}
+                  {uploadedImages.length < maxImages && !uploading && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="aspect-square rounded-lg border-2 border-dashed border-neutral-300 flex items-center justify-center cursor-pointer hover:border-brand-500 hover:bg-brand-50 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="text-center">
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-neutral-400" />
+                        <p className="text-sm text-neutral-600">Add Image</p>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {/* Add More Button */}
-              {uploadedImages.length < maxImages && !uploading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="aspect-square rounded-lg border-2 border-dashed border-neutral-300 flex items-center justify-center cursor-pointer hover:border-brand-500 hover:bg-brand-50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="text-center">
-                    <Upload className="w-8 h-8 mx-auto mb-2 text-neutral-400" />
-                    <p className="text-sm text-neutral-600">Add Image</p>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+                    </motion.div>
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {/* Upload Tips */}
             <Alert className="mt-6">
@@ -660,12 +876,25 @@ export function PropertyImageUpload({
                   <Button
                     variant="outline"
                     onClick={() => setShowCropModal(false)}
+                    disabled={uploading}
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleCropComplete}>
-                    <Check className="w-4 h-4 mr-2" />
-                    Apply Crop
+                  <Button 
+                    onClick={handleCropComplete}
+                    disabled={uploading || !completedCrop}
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Apply Crop
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

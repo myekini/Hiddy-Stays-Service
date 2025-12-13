@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Base query
+    // Base query - fetch bookings with related data
     let query = supabase
       .from("bookings")
       .select(
@@ -125,8 +125,7 @@ export async function GET(request: NextRequest) {
           title,
           address,
           location,
-          price_per_night,
-          property_images!property_images_property_id_fkey(image_url)
+          price_per_night
         ),
         guest:profiles!bookings_guest_id_fkey(
           id,
@@ -183,36 +182,160 @@ export async function GET(request: NextRequest) {
       throw new Error(`Database error: ${error.message}`);
     }
 
+    // Auto-complete confirmed bookings that have passed check-out date
+    if (bookings && bookings.length > 0) {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const bookingsToComplete = bookings.filter(
+        (booking: any) =>
+          booking.status === 'confirmed' &&
+          booking.check_out_date < today
+      );
+
+      if (bookingsToComplete.length > 0) {
+        const bookingIdsToComplete = bookingsToComplete.map((b: any) => b.id);
+
+        await supabase
+          .from('bookings')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', bookingIdsToComplete);
+
+        // Update local bookings array
+        bookings.forEach((booking: any) => {
+          if (bookingIdsToComplete.includes(booking.id)) {
+            booking.status = 'completed';
+          }
+        });
+      }
+    }
+
+    // Fetch property images separately to avoid relationship issues
+    const propertyIds = bookings?.map(b => b.property_id).filter(Boolean) || [];
+    let propertyImagesMap: Record<string, string[]> = {};
+    
+    if (propertyIds.length > 0) {
+      const { data: images, error: imagesError } = await supabase
+        .from("property_images")
+        .select("property_id, public_url, storage_path, is_primary, display_order")
+        .in("property_id", propertyIds);
+      
+      if (imagesError) {
+        console.error("Error fetching property images:", imagesError);
+      }
+      
+      if (images && images.length > 0) {
+        images.forEach((img: any) => {
+          let url = img.public_url;
+          
+          // If no public_url, convert storage_path to public URL
+          if (!url && img.storage_path) {
+            // Check if storage_path is already a full URL
+            if (img.storage_path.startsWith('http://') || img.storage_path.startsWith('https://')) {
+              url = img.storage_path;
+            } else {
+              // Convert storage_path to public URL
+              const { data } = supabase.storage
+                .from("property-images")
+                .getPublicUrl(img.storage_path);
+              url = data.publicUrl;
+            }
+          }
+          
+          // Also check if it's a relative path starting with /assets (old format)
+          if (!url && img.storage_path?.startsWith('/assets/')) {
+            url = img.storage_path;
+          }
+          
+          if (url && url.trim() !== "") {
+            const propId = String(img.property_id); // Ensure string type for consistent mapping
+            if (!propertyImagesMap[propId]) {
+              propertyImagesMap[propId] = [];
+            }
+            propertyImagesMap[propId].push(url);
+          }
+        });
+        
+        // Sort by is_primary and display_order
+        Object.keys(propertyImagesMap).forEach(propId => {
+          propertyImagesMap[propId].sort((a, b) => {
+            const imgA = images.find((img: any) => {
+              let url = img.public_url || (img.storage_path?.startsWith('http') ? img.storage_path : null);
+              if (!url && img.storage_path) {
+                const { data } = supabase.storage.from("property-images").getPublicUrl(img.storage_path);
+                url = data.publicUrl;
+              }
+              return url === a && img.property_id === propId;
+            });
+            const imgB = images.find((img: any) => {
+              let url = img.public_url || (img.storage_path?.startsWith('http') ? img.storage_path : null);
+              if (!url && img.storage_path) {
+                const { data } = supabase.storage.from("property-images").getPublicUrl(img.storage_path);
+                url = data.publicUrl;
+              }
+              return url === b && img.property_id === propId;
+            });
+            if (imgA?.is_primary && !imgB?.is_primary) return -1;
+            if (!imgA?.is_primary && imgB?.is_primary) return 1;
+            return (imgA?.display_order || 0) - (imgB?.display_order || 0);
+          });
+        });
+      }
+    }
+
     // Transform the data to include property images
     const transformedBookings =
-      bookings?.map(booking => ({
-        ...booking,
-        property: {
-          ...booking.properties,
-          images:
-            booking.properties?.property_images?.map(
-              (img: any) => img.image_url
-            ) || [],
-        },
-        guest_name:
-          `${booking.guest?.first_name || ""} ${booking.guest?.last_name || ""}`.trim(),
-        guest_email: booking.guest?.email,
-        guest_phone: booking.guest?.phone,
-        host_name:
-          `${booking.host?.first_name || ""} ${booking.host?.last_name || ""}`.trim(),
-        host_email: booking.host?.email,
-      })) || [];
+      bookings?.map(booking => {
+        const propertyData = booking.properties || {};
+        const propertyId = String(booking.property_id); // Ensure string type for consistent mapping
+        const images = propertyImagesMap[propertyId] || [];
+        
+        // Debug: Log image mapping for first booking
+        if (booking === bookings[0] && Object.keys(propertyImagesMap).length > 0) {
+          console.log("Image mapping debug:", {
+            propertyId,
+            hasImagesInMap: !!propertyImagesMap[propertyId],
+            imagesCount: images.length,
+            images: images,
+            allPropertyIds: Object.keys(propertyImagesMap),
+          });
+        }
+        
+        return {
+          ...booking,
+          property: {
+            ...propertyData,
+            images: images,
+          },
+          guest_name:
+            `${booking.guest?.first_name || ""} ${booking.guest?.last_name || ""}`.trim(),
+          guest_email: booking.guest?.email,
+          guest_phone: booking.guest?.phone,
+          host_name: "Hiddy", // Set default host name to Hiddy
+          host_email: booking.host?.email,
+        };
+      }) || [];
 
-    return NextResponse.json({
-      success: true,
-      bookings: transformedBookings,
-      count: transformedBookings.length,
-      pagination: {
-        limit,
-        offset,
-        hasMore: transformedBookings.length === limit,
+    return NextResponse.json(
+      {
+        success: true,
+        bookings: transformedBookings,
+        count: transformedBookings.length,
+        pagination: {
+          limit,
+          offset,
+          hasMore: transformedBookings.length === limit,
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching bookings:", error);
 
@@ -238,6 +361,34 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Require Authorization: Bearer <token>
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const token = authHeader.slice(7);
+
+    // Validate token and get user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    // Get profile (for role and profile.id)
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { bookingId, status, notes, specialRequests } = body;
 
@@ -271,6 +422,34 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log(`Updating booking ${bookingId} to status: ${status}`);
+
+    // Ensure caller is allowed to update this booking
+    const { data: existingBooking, error: bookingFetchError } = await supabase
+      .from("bookings")
+      .select("id, guest_id, host_id, status")
+      .eq("id", bookingId)
+      .single();
+
+    if (bookingFetchError || !existingBooking) {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    const isAdmin = profile.role === "admin";
+    const isBookingGuest = existingBooking.guest_id === profile.id;
+    const isBookingHost = existingBooking.host_id === profile.id;
+
+    if (!isAdmin && !isBookingGuest && !isBookingHost) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Restrict who can set certain statuses
+    // Guests shouldn't confirm/complete bookings; hosts/admins can.
+    if (!isAdmin && isBookingGuest && ["confirmed", "completed"].includes(status)) {
+      return NextResponse.json(
+        { error: "Guests cannot set this status" },
+        { status: 403 }
+      );
+    }
 
     const updateData: any = {
       status,

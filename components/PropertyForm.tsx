@@ -2,19 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
 import {
   X,
-  Upload,
-  MapPin,
   Home,
   Users,
   DollarSign,
   Calendar,
   Settings,
   Save,
-  Eye,
-  EyeOff,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -31,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -126,7 +120,6 @@ export function PropertyForm({
   onClose,
   onSuccess,
 }: PropertyFormProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -253,9 +246,6 @@ export function PropertyForm({
           onSuccess(result.property);
         }
         onClose();
-
-        // Refresh the page or redirect
-        router.refresh();
       } else {
         const error = await response.json();
         throw new Error(error.error || "Failed to save property");
@@ -480,11 +470,11 @@ export function PropertyForm({
                               id="price"
                               type="number"
                               placeholder="150"
-                              value={formData.price_per_night}
+                              value={formData.price_per_night || ""}
                               onChange={(e) =>
                                 handleInputChange(
                                   "price_per_night",
-                                  parseFloat(e.target.value)
+                                  e.target.value ? parseFloat(e.target.value) : 0
                                 )
                               }
                               className="pl-10"
@@ -499,11 +489,11 @@ export function PropertyForm({
                               id="bedrooms"
                               type="number"
                               min="1"
-                              value={formData.bedrooms}
+                              value={formData.bedrooms || ""}
                               onChange={(e) =>
                                 handleInputChange(
                                   "bedrooms",
-                                  parseInt(e.target.value)
+                                  e.target.value ? parseInt(e.target.value) : 1
                                 )
                               }
                             />
@@ -515,11 +505,11 @@ export function PropertyForm({
                               type="number"
                               min="1"
                               step="0.5"
-                              value={formData.bathrooms}
+                              value={formData.bathrooms || ""}
                               onChange={(e) =>
                                 handleInputChange(
                                   "bathrooms",
-                                  parseFloat(e.target.value)
+                                  e.target.value ? parseFloat(e.target.value) : 1
                                 )
                               }
                             />
@@ -534,11 +524,11 @@ export function PropertyForm({
                               id="max_guests"
                               type="number"
                               min="1"
-                              value={formData.max_guests}
+                              value={formData.max_guests || ""}
                               onChange={(e) =>
                                 handleInputChange(
                                   "max_guests",
-                                  parseInt(e.target.value)
+                                  e.target.value ? parseInt(e.target.value) : 1
                                 )
                               }
                               className="pl-10"

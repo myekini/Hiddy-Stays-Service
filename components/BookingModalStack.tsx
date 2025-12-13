@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format, differenceInDays } from "date-fns";
 import { Calendar, Users, Mail, Phone, User, DollarSign, Clock, Shield } from "lucide-react";
 import {
@@ -52,6 +53,7 @@ export default function BookingModalStack({
   onClose,
   property,
 }: BookingModalStackProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -132,16 +134,31 @@ export default function BookingModalStack({
       }
 
       // Check for existing bookings
-      const { data: conflicts, error } = await supabase
+      // Fetch all active bookings and check for overlaps manually
+      const { data: allBookings, error } = await supabase
         .from("bookings")
         .select("check_in_date, check_out_date")
         .eq("property_id", property.id)
-        .in("status", ["confirmed", "pending"])
-        .or(`check_in_date.lte.${checkOut},check_out_date.gte.${checkIn}`);
+        .in("status", ["confirmed", "pending"]); // Only check active bookings
 
       if (error) throw error;
 
-      const hasConflicts = conflicts && conflicts.length > 0;
+      // Check for date overlaps manually
+      // Two date ranges overlap if: start1 < end2 AND start2 < end1
+      // Reuse checkInDate and checkOutDate from above
+      
+      const conflicts = (allBookings || []).filter((booking) => {
+        const existingCheckIn = new Date(booking.check_in_date);
+        const existingCheckOut = new Date(booking.check_out_date);
+        
+        // Check if ranges overlap (check-out dates are exclusive)
+        return (
+          checkInDate < existingCheckOut && 
+          existingCheckIn < checkOutDate
+        );
+      });
+
+      const hasConflicts = conflicts.length > 0;
       setAvailability({
         available: !hasConflicts,
         conflicts: hasConflicts ? conflicts.map(c => ({
@@ -207,29 +224,17 @@ export default function BookingModalStack({
         throw new Error(errorData.message || errorData.error || "Failed to create booking");
       }
 
-      const { bookingId } = await bookingResponse.json();
+      const bookingResult = await bookingResponse.json();
+      const { bookingId } = bookingResult;
 
-      // Create Stripe payment session
-      const paymentResponse = await fetch("/api/payments/create-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId,
-          amount: totalAmount,
-          currency: "cad",
-          success_url: `${window.location.origin}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${window.location.origin}/booking/cancel`,
-        }),
+      // Show success message for booking creation
+      toast({
+        title: "Booking Created! 🎉",
+        description: "Your booking request has been submitted. Redirecting to payment...",
       });
 
-      if (!paymentResponse.ok) {
-        throw new Error("Failed to create payment session");
-      }
-
-      const { url } = await paymentResponse.json();
-
-      // Redirect to Stripe checkout
-      window.location.href = url;
+      onClose();
+      router.push(`/booking/${bookingId}/pay`);
     } catch (error) {
       console.error("Error creating booking:", error);
       toast({

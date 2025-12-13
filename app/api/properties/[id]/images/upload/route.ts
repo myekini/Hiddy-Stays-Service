@@ -23,10 +23,17 @@ export async function POST(
     const supabase = await createClient();
 
     // Get current user
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7)
+      : null;
+
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = token
+      ? await supabase.auth.getUser(token)
+      : await supabase.auth.getUser();
 
     if (userError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,7 +56,18 @@ export async function POST(
       );
     }
 
-    if (property.host_id !== user.id) {
+    // properties.host_id stores the host profile id, not auth user id.
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !profile?.id) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+    }
+
+    if (property.host_id !== profile.id) {
       return NextResponse.json(
         { error: "You can only upload images to your own properties" },
         { status: 403 }
@@ -120,7 +138,7 @@ export async function POST(
         const buffer = Buffer.from(arrayBuffer);
 
         // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("property-images")
           .upload(fileName, buffer, {
             contentType: file.type,
@@ -142,8 +160,8 @@ export async function POST(
         } = supabase.storage.from("property-images").getPublicUrl(fileName);
 
         // Get image dimensions (basic validation)
-        let width = null;
-        let height = null;
+        const width = null;
+        const height = null;
 
         // Save image metadata to database
         const { data: imageRecord, error: dbError } = await supabase

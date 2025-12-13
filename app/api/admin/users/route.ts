@@ -266,6 +266,116 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
+ * POST /api/admin/users
+ * Create a new user (auth + profile)
+ * Admin only
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    if (!allowRequest(ip, 60)) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser(token);
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { email, password, role } = body as {
+      email?: string;
+      password?: string;
+      role?: "user" | "host" | "admin";
+    };
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
+
+    const finalRole: "user" | "host" | "admin" = role || "user";
+    const isHost = finalRole === "host" || finalRole === "admin";
+
+    const { data: created, error: createError } =
+      await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          role: finalRole,
+          is_host: isHost,
+          is_verified: true,
+        },
+      });
+
+    if (createError || !created?.user) {
+      return NextResponse.json(
+        { error: "Failed to create user", details: createError?.message },
+        { status: 500 }
+      );
+    }
+
+    // Ensure profile matches (profile row might be created by trigger; update is idempotent)
+    const { data: updatedProfile, error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({
+        role: finalRole,
+        is_host: isHost,
+        is_verified: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", created.user.id)
+      .select()
+      .single();
+
+    if (profileUpdateError) {
+      console.error("Failed to update profile after user creation:", profileUpdateError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: created.user.id,
+        email: created.user.email,
+        role: finalRole,
+        profile: updatedProfile || null,
+      },
+    });
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * DELETE /api/admin/users
  * Delete user account
  * Admin only

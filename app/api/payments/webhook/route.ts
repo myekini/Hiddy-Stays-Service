@@ -304,49 +304,102 @@ async function sendBookingEmails(
   hostProfile: any
 ) {
   try {
-    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    // Import the unified email service
+    const { unifiedEmailService } = await import("@/lib/unified-email-service");
 
-    // Send email to guest
-    await supabase.functions.invoke("send-email-notification", {
-      body: {
-        to: booking.guest_email,
-        template: "booking_confirmation_guest",
-        data: {
-          propertyTitle: propertyInfo?.title || "Property",
-          guestName: booking.guest_name,
-          checkInDate: booking.check_in_date,
-          checkOutDate: booking.check_out_date,
-          guestsCount: booking.guests_count,
-          totalAmount: booking.total_amount,
-          propertyUrl: `${appUrl}/bookings/${booking.id}`,
-        },
-      },
+    const formatDate = (dateStr: string) => {
+      return new Date(dateStr).toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    // Calculate Stripe fee (approximately 2.9% + $0.30)
+    const stripeFee = Math.round(booking.total_amount * 0.029 + 0.30);
+    const netAmount = booking.total_amount - stripeFee;
+
+    // Send confirmation email to guest
+    const guestResult = await unifiedEmailService.sendBookingConfirmation({
+      bookingId: booking.id,
+      guestName: booking.guest_name,
+      guestEmail: booking.guest_email,
+      hostName: hostProfile?.full_name || "Host",
+      hostEmail: hostProfile?.email || "",
+      propertyTitle: propertyInfo?.title || "Property",
+      propertyLocation: propertyInfo?.address || propertyInfo?.city || "",
+      propertyAddress: `${propertyInfo?.address || ""}, ${propertyInfo?.city || ""}, ${propertyInfo?.state || ""}`.trim(),
+      checkInDate: formatDate(booking.check_in_date),
+      checkOutDate: formatDate(booking.check_out_date),
+      guests: booking.guests_count,
+      totalAmount: booking.total_amount,
     });
 
-    // Send email to host
-    if (hostProfile?.email) {
-      await supabase.functions.invoke("send-email-notification", {
-        body: {
-          to: hostProfile.email,
-          template: "new_booking_host",
-          data: {
-            propertyTitle: propertyInfo?.title || "Property",
-            hostName: hostProfile.full_name || "Host",
-            guestName: booking.guest_name,
-            guestEmail: booking.guest_email,
-            guestPhone: booking.guest_phone || "Not provided",
-            checkInDate: booking.check_in_date,
-            checkOutDate: booking.check_out_date,
-            guestsCount: booking.guests_count,
-            totalAmount: booking.total_amount,
-            specialRequests: booking.special_requests || "",
-            dashboardUrl: `${appUrl}/host-dashboard`,
-          },
-        },
-      });
+    if (guestResult.success) {
+      console.log("✅ Guest confirmation email sent");
+    } else {
+      console.error("❌ Failed to send guest email:", guestResult.error);
     }
 
-    console.log("✅ Booking confirmation emails sent");
+    // Send notification email to host
+    if (hostProfile?.email) {
+      const hostResult = await unifiedEmailService.sendHostNotification({
+        bookingId: booking.id,
+        guestName: booking.guest_name,
+        guestEmail: booking.guest_email,
+        guestPhone: booking.guest_phone,
+        hostName: hostProfile.full_name || "Host",
+        hostEmail: hostProfile.email,
+        propertyTitle: propertyInfo?.title || "Property",
+        propertyLocation: propertyInfo?.address || "",
+        checkInDate: formatDate(booking.check_in_date),
+        checkOutDate: formatDate(booking.check_out_date),
+        guests: booking.guests_count,
+        totalAmount: booking.total_amount,
+        stripeFee,
+        netAmount,
+        specialRequests: booking.special_requests || "",
+      });
+
+      if (hostResult.success) {
+        console.log("✅ Host notification email sent");
+      } else {
+        console.error("❌ Failed to send host email:", hostResult.error);
+      }
+    }
+
+    // Send payment receipt to guest
+    const receiptResult = await unifiedEmailService.sendPaymentReceipt({
+      guestName: booking.guest_name,
+      guestEmail: booking.guest_email,
+      propertyName: propertyInfo?.title || "Property",
+      transactionId: booking.stripe_payment_intent_id || booking.id,
+      paymentDate: new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      paymentTime: new Date().toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      paymentMethod: "Credit Card",
+      accommodationAmount: booking.total_amount,
+      cleaningFee: 0,
+      serviceFee: 0,
+      paymentProcessingFee: 0,
+      totalAmount: booking.total_amount,
+      bookingId: booking.id,
+    });
+
+    if (receiptResult.success) {
+      console.log("✅ Payment receipt email sent");
+    } else {
+      console.error("❌ Failed to send payment receipt:", receiptResult.error);
+    }
+
+    console.log("✅ All booking confirmation emails processed");
   } catch (emailError) {
     console.error("❌ Failed to send emails:", emailError);
     // Don't throw - email failure shouldn't fail webhook

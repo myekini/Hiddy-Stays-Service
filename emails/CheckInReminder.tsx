@@ -4,8 +4,10 @@ import {
   Button,
   Row,
   Column,
+  Hr,
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
+import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
 
 interface CheckInReminderProps {
   guestName: string;
@@ -42,101 +44,107 @@ export const CheckInReminder = ({
 }: CheckInReminderProps) => {
   return (
     <EmailLayout preview={`Your stay begins tomorrow at ${propertyName}!`}>
+      {/* Hero Title */}
+      <Section style={heroSection}>
+        <Text style={heroTitle}>Your stay begins tomorrow</Text>
+        <Text style={heroSubtitle}>{propertyName}</Text>
+      </Section>
+
       {/* Greeting */}
       <Section style={greetingSection}>
-        <Text style={greeting}>Hey {guestName}! 🎉</Text>
+        <Text style={greeting}>Hey {guestName} 🎉</Text>
         <Text style={message}>
-          Your stay at <strong>{propertyName}</strong> begins tomorrow!
+          Your stay at <strong>{propertyName}</strong> begins tomorrow.
         </Text>
       </Section>
 
-      {/* Check-in Details Card */}
+      {/* Check-in Card */}
       <Section style={cardSection}>
         <Section style={checkInCard}>
-          <Text style={cardTitle}>⏰ Check-in Details</Text>
-          <Text style={divider}>━━━━━━━━━━━━━━━━━━━━</Text>
+          <Text style={cardTitle}>Check-in Details</Text>
+          
+          <Hr style={softDivider} />
 
           <Row style={detailRow}>
             <Column>
-              <Text style={detailLabel}>Date:</Text>
+              <Text style={detailLabel}>Date</Text>
+              <Text style={detailValueBold}>{checkInDate}</Text>
             </Column>
             <Column>
-              <Text style={detailValue}>{checkInDate}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Time:</Text>
-            </Column>
-            <Column>
+              <Text style={detailLabel}>Time</Text>
               <Text style={detailValue}>{checkInTime}</Text>
             </Column>
           </Row>
 
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Address:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{propertyAddress}</Text>
-            </Column>
-          </Row>
+          <Hr style={softDivider} />
+
+          <Text style={addressLabel}>Address</Text>
+          <Text style={addressValue}>{propertyAddress}</Text>
         </Section>
       </Section>
 
       {/* Google Maps Button */}
       <Section style={mapSection}>
-        <Button href={`${googleMapsUrl}?utm_source=email&utm_medium=checkin_reminder&utm_campaign=guest_experience`} style={mapsButton}>
-          📍 View on Google Maps
+        <Button
+          href={`${googleMapsUrl}?utm_source=email&utm_medium=checkin_reminder&utm_campaign=guest_experience`}
+          style={mapsButton}
+        >
+          Open in Google Maps
         </Button>
       </Section>
 
       {/* Host Contact */}
       <Section style={contactSection}>
-        <Text style={contactTitle}>📞 Host Contact</Text>
-        <Text style={contactText}>
-          {hostName}: <a href={`tel:${hostPhone}`} style={phoneLink}>{hostPhone}</a>
-        </Text>
-      </Section>
-
-      {/* Important Reminders */}
-      <Section style={remindersSection}>
-        <Text style={remindersTitle}>📝 Important Reminders</Text>
-
-        <Text style={reminderItem}>• Bring a valid ID</Text>
-        <Text style={reminderItem}>• Check-in time: {checkInTime}</Text>
-        {specialInstructions && (
-          <Text style={reminderItem}>• {specialInstructions}</Text>
-        )}
+        <Section style={contactCard}>
+          <Text style={contactTitle}>Host Contact</Text>
+          <Text style={contactText}>
+            <strong>{hostName}</strong>
+          </Text>
+          <Text style={contactPhone}>
+            <a href={`tel:${hostPhone}`} style={phoneLink}>{hostPhone}</a>
+          </Text>
+        </Section>
       </Section>
 
       {/* Property Details */}
-      <Section style={detailsSection}>
-        <Text style={detailsTitle}>🏠 Property Details</Text>
+      {(wifiNetwork || parkingInstructions || entryInstructions) && (
+        <Section style={detailsSection}>
+          <Text style={detailsTitle}>Property Details</Text>
 
-        {wifiNetwork && (
-          <Section style={infoBox}>
-            <Text style={infoLabel}>WiFi:</Text>
-            <Text style={infoValue}>Network: {wifiNetwork}</Text>
-            {wifiPassword && (
-              <Text style={infoValue}>Password: {wifiPassword}</Text>
-            )}
-          </Section>
-        )}
+          {wifiNetwork && (
+            <Section style={infoBox}>
+              <Text style={infoLabel}>WiFi</Text>
+              <Text style={infoValue}>{wifiNetwork}</Text>
+              {wifiPassword && (
+                <Text style={infoValue}>{wifiPassword}</Text>
+              )}
+            </Section>
+          )}
 
-        {parkingInstructions && (
-          <Section style={infoBox}>
-            <Text style={infoLabel}>Parking:</Text>
-            <Text style={infoValue}>{parkingInstructions}</Text>
-          </Section>
-        )}
+          {parkingInstructions && (
+            <Section style={infoBox}>
+              <Text style={infoLabel}>Parking</Text>
+              <Text style={infoValue}>{parkingInstructions}</Text>
+            </Section>
+          )}
 
-        {entryInstructions && (
-          <Section style={infoBox}>
-            <Text style={infoLabel}>Entry:</Text>
-            <Text style={infoValue}>{entryInstructions}</Text>
-          </Section>
+          {entryInstructions && (
+            <Section style={infoBox}>
+              <Text style={infoLabel}>Entry</Text>
+              <Text style={infoValue}>{entryInstructions}</Text>
+            </Section>
+          )}
+        </Section>
+      )}
+
+      {/* Important Reminders */}
+      <Section style={remindersSection}>
+        <Text style={remindersTitle}>Important Reminders</Text>
+        <Text style={reminderText}>
+          Bring a valid ID • Check-in time: {checkInTime}
+        </Text>
+        {specialInstructions && (
+          <Text style={reminderText}>{specialInstructions}</Text>
         )}
       </Section>
 
@@ -146,32 +154,19 @@ export const CheckInReminder = ({
           href={`https://hiddystays.com/bookings/${bookingId}?utm_source=email&utm_medium=checkin_reminder&utm_campaign=guest_experience`}
           style={primaryButton}
         >
-          View Full Booking Details
+          View Booking Details
         </Button>
       </Section>
 
       {/* Footer Message */}
       <Section style={footerMessageSection}>
         <Text style={footerMessageText}>
-          Need to make changes or have questions?
-        </Text>
-        <Text style={footerMessageText}>
-          Contact {hostName} directly or reach us at{' '}
+          Need help? Contact {hostName} directly or reach us at{' '}
           <a href="mailto:admin@hiddystays.com" style={emailLink}>
             admin@hiddystays.com
           </a>
         </Text>
-        <Text style={{ ...footerMessageText, marginTop: '20px' }}>
-          Safe travels!
-        </Text>
-        <Text style={footerMessageText}>The HiddyStays Team</Text>
-      </Section>
-
-      {/* Booking ID */}
-      <Section style={bookingIdSection}>
-        <Text style={bookingIdText}>
-          Your booking ID: {bookingId}
-        </Text>
+        <Text style={footerMessageText}>— The HiddyStays Team</Text>
       </Section>
     </EmailLayout>
   );
@@ -179,198 +174,225 @@ export const CheckInReminder = ({
 
 export default CheckInReminder;
 
-// Styles
+// Styles - World-class design system
+const heroSection = {
+  backgroundColor: colors.softBackground,
+  padding: `${spacing.xl} ${layout.containerPadding}`,
+  textAlign: 'center' as const,
+};
+
+const heroTitle = {
+  ...typography.headingXL,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.xs} 0`,
+};
+
+const heroSubtitle = {
+  ...typography.body,
+  color: colors.textMedium,
+  margin: '0',
+};
+
 const greetingSection = {
-  padding: '40px 30px 20px',
+  padding: `${spacing.xl} ${layout.containerPadding} ${spacing.md}`,
 };
 
 const greeting = {
-  fontSize: '28px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 16px 0',
+  ...typography.headingL,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
 };
 
 const message = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#111827',
+  ...typography.body,
+  color: colors.textMedium,
   margin: '0',
 };
 
 const cardSection = {
-  padding: '30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
 const checkInCard = {
-  backgroundColor: '#F0F9FF',
-  border: '2px solid #10B981',
-  borderRadius: '12px',
-  padding: '30px',
+  ...cards,
+  backgroundColor: colors.white,
+  border: `2px solid ${colors.accentGreen}`,
 };
 
 const cardTitle = {
-  fontSize: '20px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 12px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
-const divider = {
-  fontSize: '14px',
-  color: '#E5E7EB',
-  margin: '12px 0 20px 0',
-  letterSpacing: '2px',
+const softDivider = {
+  borderColor: colors.divider,
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderLeft: 'none',
+  borderRight: 'none',
+  borderBottom: 'none',
+  margin: `${spacing.md} 0`,
 };
 
 const detailRow = {
-  margin: '12px 0',
+  margin: '0',
 };
 
 const detailLabel = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '0',
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
 };
 
 const detailValue = {
-  fontSize: '16px',
+  ...typography.body,
   fontWeight: '600',
-  color: '#111827',
+  color: colors.textStrong,
   margin: '0',
 };
 
+const detailValueBold = {
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: '0',
+};
+
+const addressLabel = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
+};
+
+const addressValue = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: '0',
+  lineHeight: '1.5',
+};
+
 const mapSection = {
-  padding: '0 30px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
   textAlign: 'center' as const,
 };
 
 const mapsButton = {
-  backgroundColor: '#1E3A5F',
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: '600',
+  ...buttons.secondary,
   textDecoration: 'none',
-  textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '14px 28px',
-  borderRadius: '8px',
 };
 
 const contactSection = {
-  padding: '20px 30px',
-  backgroundColor: '#F9FAFB',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
+};
+
+const contactCard = {
+  ...cards,
+  backgroundColor: colors.softBackground,
+  textAlign: 'center' as const,
 };
 
 const contactTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 12px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
 };
 
 const contactText = {
-  fontSize: '16px',
-  color: '#111827',
+  ...typography.body,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.xs} 0`,
+};
+
+const contactPhone = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
   margin: '0',
 };
 
 const phoneLink = {
-  color: '#1E3A5F',
+  color: colors.primaryBlue,
   textDecoration: 'none',
   fontWeight: '600',
 };
 
-const remindersSection = {
-  padding: '30px',
-};
-
-const remindersTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 16px 0',
-};
-
-const reminderItem = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '8px 0',
-};
-
 const detailsSection = {
-  padding: '20px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
 const detailsTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 20px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
 const infoBox = {
-  backgroundColor: '#F9FAFB',
+  backgroundColor: colors.softBackground,
   borderRadius: '8px',
-  padding: '16px',
-  margin: '12px 0',
+  padding: spacing.md,
+  margin: `0 0 ${spacing.sm} 0`,
 };
 
 const infoLabel = {
-  fontSize: '14px',
+  ...typography.micro,
   fontWeight: '600',
-  color: '#111827',
-  margin: '0 0 8px 0',
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
 };
 
 const infoValue = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '4px 0',
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.xs} 0 0 0`,
+};
+
+const remindersSection = {
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
+};
+
+const remindersTitle = {
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
+};
+
+const reminderText = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.xs} 0`,
+  lineHeight: '1.5',
 };
 
 const ctaSection = {
-  padding: '40px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.xl}`,
   textAlign: 'center' as const,
 };
 
 const primaryButton = {
-  backgroundColor: '#10B981',
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: '600',
+  ...buttons.primary,
   textDecoration: 'none',
-  textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '16px 32px',
-  borderRadius: '8px',
 };
 
 const footerMessageSection = {
-  padding: '30px',
+  padding: `${spacing.lg} ${layout.containerPadding}`,
   textAlign: 'center' as const,
-  borderTop: '1px solid #E5E7EB',
+  borderTop: `1px solid ${colors.divider}`,
 };
 
 const footerMessageText = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '8px 0',
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.xs} 0`,
 };
 
 const emailLink = {
-  color: '#1E3A5F',
+  color: colors.primaryBlue,
   textDecoration: 'none',
-};
-
-const bookingIdSection = {
-  padding: '0 30px 30px',
-  textAlign: 'center' as const,
-};
-
-const bookingIdText = {
-  fontSize: '12px',
-  color: '#9CA3AF',
-  fontFamily: 'monospace',
-  margin: '0',
 };

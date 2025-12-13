@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Heart, Star, MapPin, Users, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
@@ -71,10 +72,14 @@ const PropertyCard = ({
       >
         <div className="flex">
           <div className="relative w-80 h-64 overflow-hidden bg-gray-100 dark:bg-gray-900 flex-shrink-0">
-            <img
+            <Image
               src={imageUrl}
               alt={property.title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              fill
+              sizes="320px"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+              quality={85}
             />
             <button
               onClick={handleFavoriteClick}
@@ -155,10 +160,14 @@ const PropertyCard = ({
     >
       {/* Image Container */}
       <div className="relative h-72 overflow-hidden bg-gray-100 dark:bg-gray-900">
-        <img
+        <Image
           src={imageUrl}
           alt={property.title}
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          loading="lazy"
+          quality={85}
           onLoad={() => setImageLoaded(true)}
         />
 

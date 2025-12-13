@@ -88,11 +88,13 @@ interface Booking {
 interface BookingManagementProps {
   hostId?: string;
   propertyId?: string;
+  onBookingUpdate?: () => void;
 }
 
 export function BookingManagement({
   hostId,
   propertyId,
+  onBookingUpdate,
 }: BookingManagementProps) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -123,7 +125,20 @@ export function BookingManagement({
       if (filters.status !== "all") params.append("status", filters.status);
       params.append("limit", "50");
 
-      const response = await fetch(`/api/bookings?${params.toString()}`);
+      // Get auth token from Supabase
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch(`/api/bookings?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -165,9 +180,20 @@ export function BookingManagement({
     if (!selectedBooking || !newStatus) return;
 
     try {
+      // Get auth token from Supabase
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("No authentication token available");
+      }
+
       const response = await fetch("/api/bookings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           bookingId: selectedBooking.id,
           status: newStatus,
@@ -185,6 +211,10 @@ export function BookingManagement({
         setNewStatus("");
         setStatusNotes("");
         loadBookings();
+        // Notify parent component to refresh dashboard data
+        if (onBookingUpdate) {
+          onBookingUpdate();
+        }
       } else {
         const error = await response.json();
         throw new Error(error.error || "Failed to update booking");

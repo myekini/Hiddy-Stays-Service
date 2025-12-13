@@ -5,6 +5,8 @@ import HostBookingNotification from '@/emails/HostBookingNotification';
 import PaymentReceipt from '@/emails/PaymentReceipt';
 import WelcomeEmail from '@/emails/WelcomeEmail';
 import CheckInReminder from '@/emails/CheckInReminder';
+import BookingCancellation from '@/emails/BookingCancellation';
+import GenericNotification from '@/emails/GenericNotification';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -214,21 +216,17 @@ export class UnifiedEmailService {
     checkInDate: string;
     bookingId: string;
     cancellationReason?: string;
+    refundAmount?: number;
   }) {
     try {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <body style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2>Booking Cancelled</h2>
-            <p>Hi ${data.recipientName},</p>
-            <p>Your booking at <strong>${data.propertyName}</strong> (Check-in: ${data.checkInDate}) has been cancelled.</p>
-            ${data.cancellationReason ? `<p><strong>Reason:</strong> ${data.cancellationReason}</p>` : ''}
-            <p>Booking ID: ${data.bookingId}</p>
-            <p>If you have any questions, please contact us at admin@hiddystays.com</p>
-          </body>
-        </html>
-      `;
+      const html = await render(BookingCancellation({
+        guestName: data.recipientName,
+        propertyName: data.propertyName,
+        bookingId: data.bookingId,
+        checkInDate: data.checkInDate,
+        refundAmount: data.refundAmount,
+        cancellationReason: data.cancellationReason,
+      }));
 
       const result = await resend.emails.send({
         from: this.from,
@@ -252,25 +250,16 @@ export class UnifiedEmailService {
     to: string;
     subject: string;
     message: string;
+    actionUrl?: string;
+    actionText?: string;
   }) {
     try {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <body style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background-color: #1E3A5F; padding: 20px; text-align: center;">
-              <h1 style="color: white; margin: 0;">HiddyStays</h1>
-            </div>
-            <div style="padding: 30px;">
-              ${data.message}
-            </div>
-            <div style="background-color: #F9FAFB; padding: 20px; text-align: center; font-size: 14px; color: #6B7280;">
-              <p>HiddyStays - Zero Fee Stays</p>
-              <p>© 2025 HiddyStays. All rights reserved.</p>
-            </div>
-          </body>
-        </html>
-      `;
+      const html = await render(GenericNotification({
+        subject: data.subject,
+        message: data.message,
+        actionUrl: data.actionUrl,
+        actionText: data.actionText,
+      }));
 
       const result = await resend.emails.send({
         from: this.from,

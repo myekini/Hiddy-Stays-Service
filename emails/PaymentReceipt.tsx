@@ -4,8 +4,10 @@ import {
   Button,
   Row,
   Column,
+  Hr,
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
+import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
 
 interface PaymentReceiptProps {
   guestName: string;
@@ -36,10 +38,20 @@ export const PaymentReceipt = ({
 }: PaymentReceiptProps) => {
   return (
     <EmailLayout preview={`Payment Receipt - Booking at ${propertyName}`}>
-      {/* Header */}
+      {/* Header with Transaction ID */}
       <Section style={headerSection}>
-        <Text style={title}>Payment Receipt</Text>
-        <Text style={subtitle}>Thank you for your payment</Text>
+        <Row>
+          <Column>
+            <Text style={title}>Payment Receipt</Text>
+            <Text style={subtitle}>Thank you for your payment</Text>
+          </Column>
+          <Column align="right" style={transactionColumn}>
+            <Section style={transactionBadge}>
+              <Text style={transactionLabel}>Transaction ID</Text>
+              <Text style={transactionIdStyle}>{transactionId}</Text>
+            </Section>
+          </Column>
+        </Row>
       </Section>
 
       {/* Greeting */}
@@ -50,46 +62,11 @@ export const PaymentReceipt = ({
         </Text>
       </Section>
 
-      {/* Transaction Details */}
-      <Section style={cardSection}>
-        <Section style={detailsCard}>
-          <Text style={cardTitle}>Transaction Details</Text>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Transaction ID:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{transactionId}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Payment Date:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{paymentDate}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Payment Method:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{paymentMethod}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Booking ID:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{bookingId}</Text>
-            </Column>
-          </Row>
+      {/* Payment Method Badge */}
+      <Section style={paymentMethodSection}>
+        <Section style={paymentMethodBadge}>
+          <Text style={paymentMethodLabel}>Payment Method</Text>
+          <Text style={paymentMethodValue}>{paymentMethod}</Text>
         </Section>
       </Section>
 
@@ -97,11 +74,12 @@ export const PaymentReceipt = ({
       <Section style={breakdownSection}>
         <Section style={breakdownCard}>
           <Text style={breakdownTitle}>Payment Breakdown</Text>
-          <Text style={divider}>━━━━━━━━━━━━━━━━━━━━</Text>
+          
+          <Hr style={softDivider} />
 
           <Row style={lineItem}>
             <Column>
-              <Text style={lineLabel}>Accommodation:</Text>
+              <Text style={lineLabel}>Accommodation</Text>
             </Column>
             <Column align="right">
               <Text style={lineValue}>${accommodationFee.toFixed(2)}</Text>
@@ -111,7 +89,7 @@ export const PaymentReceipt = ({
           {cleaningFee > 0 && (
             <Row style={lineItem}>
               <Column>
-                <Text style={lineLabel}>Cleaning fee:</Text>
+                <Text style={lineLabel}>Cleaning fee</Text>
               </Column>
               <Column align="right">
                 <Text style={lineValue}>${cleaningFee.toFixed(2)}</Text>
@@ -121,7 +99,7 @@ export const PaymentReceipt = ({
 
           <Row style={lineItem}>
             <Column>
-              <Text style={lineLabel}>Service fee:</Text>
+              <Text style={lineLabel}>Service fee</Text>
             </Column>
             <Column align="right">
               <Text style={zeroFee}>$0.00 ✨</Text>
@@ -130,27 +108,45 @@ export const PaymentReceipt = ({
 
           <Row style={lineItem}>
             <Column>
-              <Text style={lineLabel}>Payment processing:</Text>
+              <Text style={lineLabel}>Payment processing</Text>
             </Column>
             <Column align="right">
               <Text style={lineValue}>${paymentProcessing.toFixed(2)}</Text>
             </Column>
           </Row>
 
-          <Text style={divider}>━━━━━━━━━━━━━━━━━━━━</Text>
+          <Hr style={softDivider} />
 
           <Row style={totalRow}>
             <Column>
-              <Text style={totalLabel}>Total Paid:</Text>
+              <Text style={totalLabel}>Total Paid</Text>
             </Column>
             <Column align="right">
               <Text style={totalValue}>${totalAmount.toFixed(2)}</Text>
             </Column>
           </Row>
+        </Section>
+      </Section>
 
-          <Text style={transparentNote}>
-            Transparent pricing - Zero platform fees!
-          </Text>
+      {/* Transaction Details */}
+      <Section style={detailsSection}>
+        <Section style={detailsCard}>
+          <Row style={detailRow}>
+            <Column>
+              <Text style={detailLabel}>Payment Date</Text>
+            </Column>
+            <Column>
+              <Text style={detailValue}>{paymentDate}</Text>
+            </Column>
+          </Row>
+          <Row style={detailRow}>
+            <Column>
+              <Text style={detailLabel}>Booking ID</Text>
+            </Column>
+            <Column>
+              <Text style={detailValue}>{bookingId}</Text>
+            </Column>
+          </Row>
         </Section>
       </Section>
 
@@ -173,6 +169,7 @@ export const PaymentReceipt = ({
             admin@hiddystays.com
           </a>
         </Text>
+        <Text style={footerMessageText}>— The HiddyStays Team</Text>
       </Section>
     </EmailLayout>
   );
@@ -180,183 +177,211 @@ export const PaymentReceipt = ({
 
 export default PaymentReceipt;
 
-// Styles
+// Styles - World-class design system
 const headerSection = {
-  padding: '40px 30px 20px',
-  textAlign: 'center' as const,
+  padding: `${spacing.xl} ${layout.containerPadding} ${spacing.md}`,
 };
 
 const title = {
-  fontSize: '32px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 8px 0',
+  ...typography.headingXL,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.xs} 0`,
 };
 
 const subtitle = {
-  fontSize: '16px',
-  color: '#6B7280',
+  ...typography.bodySmall,
+  color: colors.textMedium,
   margin: '0',
+};
+
+const transactionColumn = {
+  verticalAlign: 'top' as const,
+};
+
+const transactionBadge = {
+  backgroundColor: colors.softBackground,
+  borderRadius: '8px',
+  padding: `${spacing.sm} ${spacing.md}`,
+  textAlign: 'right' as const,
+};
+
+const transactionLabel = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
+};
+
+const transactionIdStyle = {
+  ...typography.bodySmall,
+  fontWeight: "600",
+  color: colors.textStrong,
+  margin: "0",
+  fontFamily: "monospace",
 };
 
 const greetingSection = {
-  padding: '20px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
 const greeting = {
-  fontSize: '18px',
-  fontWeight: '600',
-  color: '#111827',
-  margin: '0 0 12px 0',
+  ...typography.headingL,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
 };
 
 const message = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#6B7280',
+  ...typography.body,
+  color: colors.textMedium,
   margin: '0',
 };
 
-const cardSection = {
-  padding: '20px 30px',
+const paymentMethodSection = {
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
-const detailsCard = {
-  backgroundColor: '#F9FAFB',
-  borderRadius: '12px',
-  padding: '24px',
+const paymentMethodBadge = {
+  backgroundColor: colors.softBackground,
+  borderRadius: '8px',
+  padding: spacing.md,
+  textAlign: 'center' as const,
 };
 
-const cardTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 16px 0',
+const paymentMethodLabel = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
 };
 
-const detailRow = {
-  margin: '8px 0',
-};
-
-const detailLabel = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '0',
-};
-
-const detailValue = {
-  fontSize: '14px',
-  fontWeight: '500',
-  color: '#111827',
+const paymentMethodValue = {
+  ...typography.body,
+  fontWeight: '600',
+  color: colors.textStrong,
   margin: '0',
 };
 
 const breakdownSection = {
-  padding: '20px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
 const breakdownCard = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #E5E7EB',
-  borderRadius: '12px',
-  padding: '24px',
+  ...cards,
+  backgroundColor: colors.white,
 };
 
 const breakdownTitle = {
-  fontSize: '20px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 8px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
-const divider = {
-  fontSize: '14px',
-  color: '#E5E7EB',
-  margin: '12px 0',
-  letterSpacing: '2px',
+const softDivider = {
+  borderColor: colors.divider,
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderLeft: 'none',
+  borderRight: 'none',
+  borderBottom: 'none',
+  margin: `${spacing.md} 0`,
 };
 
 const lineItem = {
-  margin: '12px 0',
+  margin: `${spacing.sm} 0`,
 };
 
 const lineLabel = {
-  fontSize: '16px',
-  color: '#111827',
+  ...typography.bodySmall,
+  color: colors.textMedium,
   margin: '0',
 };
 
 const lineValue = {
-  fontSize: '16px',
-  fontWeight: '500',
-  color: '#111827',
+  ...typography.bodySmall,
+  fontWeight: '600',
+  color: colors.textStrong,
   margin: '0',
 };
 
 const zeroFee = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#10B981',
+  ...typography.bodySmall,
+  fontWeight: '600',
+  color: colors.accentGreen,
   margin: '0',
 };
 
 const totalRow = {
-  margin: '16px 0 0 0',
+  margin: '0',
 };
 
 const totalLabel = {
-  fontSize: '20px',
-  fontWeight: 'bold',
-  color: '#111827',
+  ...typography.headingM,
+  color: colors.textStrong,
   margin: '0',
 };
 
 const totalValue = {
-  fontSize: '24px',
+  ...typography.headingL,
   fontWeight: 'bold',
-  color: '#10B981',
+  color: colors.accentGreen,
   margin: '0',
 };
 
-const transparentNote = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '12px 0 0 0',
-  textAlign: 'center' as const,
-  fontStyle: 'italic',
+const detailsSection = {
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
+};
+
+const detailsCard = {
+  ...cards,
+  backgroundColor: colors.softBackground,
+};
+
+const detailRow = {
+  margin: `${spacing.sm} 0`,
+};
+
+const detailLabel = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: '0',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
+};
+
+const detailValue = {
+  ...typography.bodySmall,
+  fontWeight: '600',
+  color: colors.textStrong,
+  margin: '0',
 };
 
 const ctaSection = {
-  padding: '40px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.xl}`,
   textAlign: 'center' as const,
 };
 
 const primaryButton = {
-  backgroundColor: '#1E3A5F',
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: '600',
+  ...buttons.primary,
   textDecoration: 'none',
-  textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '16px 32px',
-  borderRadius: '8px',
 };
 
 const footerMessageSection = {
-  padding: '30px',
+  padding: `${spacing.lg} ${layout.containerPadding}`,
   textAlign: 'center' as const,
-  borderTop: '1px solid #E5E7EB',
+  borderTop: `1px solid ${colors.divider}`,
 };
 
 const footerMessageText = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '0',
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.xs} 0`,
   lineHeight: '1.6',
 };
 
 const emailLink = {
-  color: '#1E3A5F',
+  color: colors.primaryBlue,
   textDecoration: 'none',
 };

@@ -1,22 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Home, Heart, Mail, Sparkles } from "lucide-react";
 import Link from "next/link";
-import NewsletterSubscription from "./NewsletterSubscription";
+import LogoImage from "./LogoImage";
 
 interface FooterProps {
   companyName?: string;
   description?: string;
-  newsletter?: {
-    title: string;
-    description: string;
-    placeholder: string;
-    buttonText: string;
-  };
   links?: {
     product?: Array<{ name: string; url: string }>;
     company?: Array<{ name: string; url: string }>;
@@ -32,27 +22,19 @@ interface FooterProps {
 
 const Footer = ({
   companyName = "HiddyStays",
-  description = "Book direct. Save more. No hidden fees.",
-  newsletter = {
-    title: "Stay Updated",
-    description: "Get the latest deals and travel tips.",
-    placeholder: "Enter your email",
-    buttonText: "Subscribe",
-  },
+  description = "Premium hospitality in the heart of Surrey. Book direct for the best rates.",
   links = {
     product: [
-      { name: "Browse Properties", url: "/properties" },
-      { name: "How it Works", url: "#features" },
-      { name: "Features", url: "#features" },
+      { name: "The Property", url: "/property/ed71c0f6-2204-4d14-b04c-6081b9d22c67" },
+      { name: "Amenities", url: "#amenities" },
+      { name: "Location", url: "#location" },
     ],
     company: [
-      { name: "About Us", url: "/about" },
       { name: "Contact", url: "/contact" },
+      { name: "Terms", url: "/terms" },
+      { name: "Privacy", url: "/privacy" },
     ],
-    support: [
-      { name: "Help Center", url: "/help" },
-      { name: "Support", url: "/contact" },
-    ],
+    support: [],
   },
   social = {
     twitter: "https://twitter.com/hiddystays",
@@ -79,27 +61,17 @@ const Footer = ({
               transition={{ duration: 0.6, delay: 0.1 }}
               viewport={{ once: true }}
             >
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="h-8 w-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-white" />
+              <div className="mb-6 flex items-center gap-3">
+                <div className="relative overflow-hidden rounded-full border border-border/50 shadow-sm w-10 h-10 bg-background">
+                  <LogoImage size="md" variant="icon" className="w-full h-full" />
                 </div>
-                <h3 className="text-foreground text-2xl font-bold">
+                <span className="font-display font-bold text-xl tracking-tight text-foreground">
                   {companyName}
-                </h3>
+                </span>
               </div>
               <p className="text-foreground/70 mb-8 max-w-md text-sm leading-relaxed">
                 {description}
               </p>
-
-              {/* Newsletter */}
-              <NewsletterSubscription
-                title={newsletter.title}
-                description={newsletter.description}
-                placeholder={newsletter.placeholder}
-                buttonText={newsletter.buttonText}
-                source="footer"
-                className="mb-8"
-              />
 
               {/* Social Links */}
               <div className="flex gap-4">

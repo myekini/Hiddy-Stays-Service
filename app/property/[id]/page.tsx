@@ -19,19 +19,16 @@ import {
   Waves,
   Shield,
   Clock,
-  Calendar,
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedBookingModal } from "@/components/EnhancedBookingModal";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import { PropertyReviews } from "@/components/PropertyReviews";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Property {
   id: string;
@@ -104,33 +101,23 @@ const PropertyDetailPage: React.FC = () => {
         const data = await response.json();
 
         if (data.success && data.property) {
-          // Fetch host profile from Supabase
-          let hostInfo = {
+          // Use host profile from API response (already fetched)
+          const profile = data.property.profiles;
+          const hostInfo = {
             id: data.property.host_id,
-            name: "Hiddy",
-            avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+            name: "Hiddy", // Set host name to Hiddy
+            avatar: profile?.avatar_url || "/placeholder.svg",
             verified: true,
           };
 
-          if (data.property.host_id) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("id, first_name, last_name, avatar_url, is_host")
-              .eq("id", data.property.host_id)
-              .single();
-
-            if (profileData) {
-              const hostName = `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim();
-              hostInfo = {
-                id: profileData.id,
-                name: hostName || "Hiddy",
-                avatar: profileData.avatar_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-                verified: profileData.is_host === true,
-              };
-            }
-          }
-
           // Transform the property data
+          // Get images from multiple possible locations
+          // Use the pre-processed images array from the API
+          // The API already handles getting signed URLs and falling back to public_urls
+          const images = Array.isArray(data.property.images) 
+            ? data.property.images 
+            : [];
+
           const transformedProperty: Property = {
             id: data.property.id,
             title: data.property.title,
@@ -142,11 +129,7 @@ const PropertyDetailPage: React.FC = () => {
             bathrooms: data.property.bathrooms,
             property_type: data.property.property_type,
             amenities: data.property.amenities || [],
-            images: data.property.metrics?.images || [
-              "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&h=800&fit=crop",
-              "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1200&h=800&fit=crop",
-              "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=800&fit=crop",
-            ],
+            images: images.length > 0 ? images : ["/placeholder.svg"],
             is_featured: data.property.is_featured || false,
             rating: data.property.rating || data.property.metrics?.avg_rating || 4.5,
             review_count: data.property.review_count || data.property.metrics?.review_count || 0,
@@ -265,64 +248,69 @@ const PropertyDetailPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column - Images and Details */}
-          <div className="lg:col-span-8 space-y-6">
-            {/* Image Gallery */}
-            <div className="relative bg-slate-100 dark:bg-slate-900 rounded-2xl overflow-hidden aspect-[16/10]">
-              <img
-                src={property.images[currentImageIndex]}
-                alt={property.title}
-                className="w-full h-full object-cover transition-opacity duration-500"
-              />
+          <div className="lg:col-span-8 space-y-8">
+            {/* Image Gallery - Modern & Sleek */}
+            <div className="relative group">
+              {/* Ambient Glow */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-[2rem] blur-2xl opacity-50 dark:opacity-20 pointer-events-none" />
+              
+              <div className="relative bg-slate-100 dark:bg-slate-900 rounded-[2rem] overflow-hidden aspect-[16/10] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+                <img
+                  src={property.images[currentImageIndex]}
+                  alt={property.title}
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
 
-              {/* Navigation Arrows */}
-              {property.images.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setCurrentImageIndex((currentImageIndex - 1 + property.images.length) % property.images.length)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-2.5 rounded-full shadow-lg hover:bg-white dark:hover:bg-slate-900 hover:scale-105 transition-all duration-200"
+                {/* Navigation Arrows - Glassmorphism */}
+                {property.images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setCurrentImageIndex((currentImageIndex - 1 + property.images.length) % property.images.length)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-md border border-white/20 p-3 rounded-full hover:bg-white/20 text-white transition-all duration-200 opacity-0 group-hover:opacity-100"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentImageIndex((currentImageIndex + 1) % property.images.length)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-md border border-white/20 p-3 rounded-full hover:bg-white/20 text-white transition-all duration-200 opacity-0 group-hover:opacity-100"
+                    >
+                      <ArrowLeft className="w-5 h-5 rotate-180" />
+                    </button>
+                  </>
+                )}
+
+                {/* Image Counter - Clean */}
+                <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md border border-white/10 text-white px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+                  {currentImageIndex + 1} / {property.images.length}
+                </div>
+
+                {/* View on Map Badge - Clean */}
+                <div className="absolute bottom-6 left-6">
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`, '_blank');
+                    }}
+                    className="bg-white/90 hover:bg-white text-slate-900 backdrop-blur-xl shadow-lg border border-white/20 rounded-full px-5 py-2 text-xs font-semibold tracking-wide transition-all duration-200"
                   >
-                    <ArrowLeft className="w-5 h-5 text-slate-900 dark:text-white" />
-                  </button>
-                  <button
-                    onClick={() => setCurrentImageIndex((currentImageIndex + 1) % property.images.length)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-2.5 rounded-full shadow-lg hover:bg-white dark:hover:bg-slate-900 hover:scale-105 transition-all duration-200"
-                  >
-                    <ArrowLeft className="w-5 h-5 text-slate-900 dark:text-white rotate-180" />
-                  </button>
-                </>
-              )}
-
-              {/* Image Counter */}
-              <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-medium">
-                {currentImageIndex + 1} / {property.images.length}
-              </div>
-
-              {/* View on Map Badge */}
-              <div className="absolute bottom-4 left-4">
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`, '_blank');
-                  }}
-                  className="bg-white/90 hover:bg-white text-slate-900 backdrop-blur-sm shadow-lg rounded-xl px-4 py-2 font-medium transition-all duration-200"
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  View Map
-                </Button>
+                    <MapPin className="w-3 h-3 mr-2" />
+                    View Map
+                  </Button>
+                </div>
               </div>
             </div>
 
-            {/* Image Thumbnails */}
+            {/* Image Thumbnails - Refined */}
             {property.images.length > 1 && (
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                {property.images.slice(0, 6).map((image, index) => (
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                {property.images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
-                    className={`relative aspect-[4/3] rounded-lg overflow-hidden transition-all duration-200 ${
+                    className={`relative w-24 h-24 flex-shrink-0 rounded-2xl overflow-hidden transition-all duration-300 ${
                       currentImageIndex === index
-                        ? "ring-2 ring-slate-900 dark:ring-white ring-offset-2"
-                        : "opacity-70 hover:opacity-100"
+                        ? "ring-2 ring-slate-900 dark:ring-white ring-offset-2 dark:ring-offset-slate-950 opacity-100 scale-105"
+                        : "opacity-60 hover:opacity-100 hover:scale-105"
                     }`}
                   >
                     <img
@@ -335,127 +323,110 @@ const PropertyDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Property Information Card */}
-            <Card className="p-6 sm:p-8 space-y-6 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-              {/* Property Header */}
+            {/* Property Information - Minimalist */}
+            <div className="space-y-8 pt-4">
+              {/* Header Section */}
               <div className="space-y-4">
-                {property.is_featured && (
-                  <Badge variant="secondary" className="bg-gradient-to-r from-amber-100 to-amber-50 dark:from-amber-950 dark:to-amber-900 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800">
-                    ⭐ Featured Property
-                  </Badge>
-                )}
-
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">
+                  <div>
+                    {property.is_featured && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs font-bold tracking-wide uppercase mb-3 border border-amber-100 dark:border-amber-800">
+                        <Star className="w-3 h-3 fill-current" /> Featured
+                      </div>
+                    )}
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                       {property.title}
                     </h1>
-
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4" />
-                        <span>{property.address}</span>
-                      </div>
-                      {property.rating && (
-                        <div className="flex items-center gap-1.5">
-                          <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                          <span className="font-medium text-slate-900 dark:text-white">{property.rating.toFixed(1)}</span>
-                          <span>({property.review_count || 0} reviews)</span>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                      <MapPin className="w-4 h-4" />
+                      <span>{property.address}</span>
                     </div>
                   </div>
+                  
+                  {/* Rating Badge - Modern */}
+                  {property.rating && (
+                    <div className="hidden sm:flex flex-col items-end">
+                      <div className="flex items-center gap-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-1.5 rounded-lg font-bold shadow-lg">
+                        <Star className="w-3.5 h-3.5 fill-current" />
+                        {property.rating.toFixed(1)}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                        {property.review_count} reviews
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Price and CTA */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                <div>
-                  <div className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
-                    ${property.price_per_night.toLocaleString()}
-                    <span className="text-lg text-slate-500 dark:text-slate-400 font-normal ml-1">/night</span>
+                {/* Sleek Divider Stats */}
+                <div className="flex items-center gap-4 sm:gap-8 py-6 border-y border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <Users className="w-5 h-5 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-900 dark:text-white">{property.max_guests}</span> Guests
+                    </span>
                   </div>
-                  <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                    ✓ Zero fees • Free cancellation
+                  <div className="w-px h-8 bg-slate-200 dark:bg-slate-800" />
+                  <div className="flex items-center gap-3">
+                    <Bed className="w-5 h-5 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-900 dark:text-white">{property.bedrooms}</span> Bedrooms
+                    </span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200 dark:bg-slate-800" />
+                  <div className="flex items-center gap-3">
+                    <Bath className="w-5 h-5 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      <span className="font-bold text-slate-900 dark:text-white">{property.bathrooms}</span> Baths
+                    </span>
                   </div>
                 </div>
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white px-8 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
-                  onClick={() => setIsBookingModalOpen(true)}
-                >
-                  Reserve Now
-                </Button>
               </div>
-
-              {/* Property Stats */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                  <Users className="w-5 h-5 text-slate-600 dark:text-slate-400 mb-2" />
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{property.max_guests}</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Guests</div>
-                </div>
-                <div className="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                  <Bed className="w-5 h-5 text-slate-600 dark:text-slate-400 mb-2" />
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{property.bedrooms}</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Bedrooms</div>
-                </div>
-                <div className="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl">
-                  <Bath className="w-5 h-5 text-slate-600 dark:text-slate-400 mb-2" />
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{property.bathrooms}</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Bathrooms</div>
-                </div>
-              </div>
-
-              <Separator className="my-6" />
 
               {/* Description */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  About
-                </h3>
-                <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">About this space</h3>
+                <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed font-light">
                   {property.description || "Modern, well-appointed space with premium amenities. Ideal for comfortable short or extended stays."}
                 </p>
               </div>
 
-              <Separator className="my-6" />
-
-              {/* Amenities */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Amenities
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Amenities - Clean Grid */}
+              <div className="space-y-6">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Amenities</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {property.amenities.map((amenity, index) => {
                     const amenityKey = amenity.toLowerCase().trim();
                     const Icon = amenityIcons[amenityKey] || CheckCircle;
                     return (
-                      <div key={index} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                        <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                          <Icon className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                      <div key={index} className="flex items-center gap-3 group">
+                        <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                          <Icon className="w-5 h-5 text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                         </div>
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{amenity}</span>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300 capitalize">{amenity}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
 
           {/* Right Sidebar - Booking and Host */}
           <div className="lg:col-span-4 space-y-6">
             {/* Booking Card - Sticky */}
-            <div className="lg:sticky lg:top-24">
-              <Card className="p-6 space-y-6 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg">
+            <div className="lg:sticky lg:top-24 space-y-6">
+              <Card className="p-6 space-y-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-2xl ring-1 ring-black/5 dark:ring-white/10">
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Calendar className="w-5 h-5" />
-                    Book Your Stay
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                      Book your stay
+                    </h3>
+                    <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full">
+                      Best Price
+                    </div>
+                  </div>
 
-                  <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-1 border border-slate-100 dark:border-slate-700/50">
                     <AvailabilityCalendar
                       propertyId={property.id}
                       onRangeSelect={(range) => setDateRange(range)}
@@ -466,13 +437,13 @@ const PropertyDetailPage: React.FC = () => {
 
                   <Button
                     size="lg"
-                    className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white py-6 rounded-xl font-semibold text-base transition-all duration-200 shadow-lg hover:shadow-xl"
+                    className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white py-6 rounded-xl font-bold text-base transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     onClick={() => setIsBookingModalOpen(true)}
                   >
                     Check Availability
                   </Button>
 
-                  <div className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                     <Shield className="w-4 h-4" />
                     <span>You won't be charged yet</span>
                   </div>
@@ -481,32 +452,32 @@ const PropertyDetailPage: React.FC = () => {
 
               {/* Host Information */}
               {property.host && (
-                <Card className="p-6 space-y-6 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 mt-6">
+                <Card className="p-6 space-y-6 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl border-slate-200 dark:border-slate-800 rounded-2xl">
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      Hosted by {property.host.name}
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                      Meet your host
                     </h3>
 
                     <div className="flex items-start gap-4">
-                      <Avatar className="h-16 w-16 ring-2 ring-slate-200 dark:ring-slate-700">
+                      <Avatar className="h-14 w-14 ring-2 ring-slate-100 dark:ring-slate-800">
                         <AvatarImage src={property.host.avatar} alt={property.host.name} />
-                        <AvatarFallback className="bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 text-slate-700 dark:text-slate-300 text-xl font-bold">
+                        <AvatarFallback className="bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-700 dark:text-slate-300 text-lg font-bold">
                           {property.host.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <div className="text-base font-semibold text-slate-900 dark:text-white">
+                          <div className="text-base font-bold text-slate-900 dark:text-white">
                             {property.host.name}
                           </div>
                           {property.host.verified && (
-                            <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-xs">
-                              ✓ Verified
+                            <Badge variant="secondary" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800/50 text-[10px] font-bold uppercase tracking-wider">
+                              Verified
                             </Badge>
                           )}
                         </div>
-                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          Joined in 2024
+                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                          Superhost • Joined 2024
                         </div>
                       </div>
                     </div>

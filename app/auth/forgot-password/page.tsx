@@ -22,7 +22,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
-import Logo from "@/components/ui/Logo";
+import LogoImage from "@/components/LogoImage";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -88,11 +88,11 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
 
         {/* Logo Section */}
         <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-white rounded-lg shadow-sm mb-4">
-            <Logo size="lg" variant="primary" type="full" />
+          <div className="inline-block p-4 bg-white dark:bg-card rounded-lg shadow-sm mb-4">
+            <LogoImage size="lg" />
           </div>
-          <p className="text-gray-600 font-medium">Reset your password</p>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-600 dark:text-gray-300 font-medium">Reset your password</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
             We'll help you get back on track
           </p>
         </div>

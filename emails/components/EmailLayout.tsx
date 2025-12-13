@@ -9,7 +9,8 @@ import {
   Link,
   Img,
   Hr,
-} from '@react-email/components';
+} from "@react-email/components";
+import { colors, typography, spacing, layout } from "../design-tokens";
 
 interface EmailLayoutProps {
   preview: string;
@@ -23,34 +24,37 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
       <Preview>{preview}</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header */}
+          {/* Header - Clean, centered, white background */}
           <Section style={header}>
             <Img
-              src="https://hiddystays.com/logo-white.png"
+              src="https://hiddystays.com/icons/light_email_400px.png"
               alt="HiddyStays"
               width="160"
               height="40"
+              style={logo}
             />
           </Section>
 
           {/* Main Content */}
-          {children}
+          <Section style={content}>{children}</Section>
 
-          {/* Footer */}
+          {/* Footer - Light background, clean spacing */}
           <Section style={footer}>
-            <Text style={footerText}>
-              HiddyStays - Zero Fee Stays
-            </Text>
-            <Text style={footerText}>
-              Keep 100% of your earnings
-            </Text>
+            <Text style={footerTitle}>HiddyStays</Text>
+            <Text style={footerTagline}>Zero‑Fee Stays • Keep 100% of your earnings</Text>
             <Hr style={footerDivider} />
             <Text style={footerLinks}>
-              <Link href="https://hiddystays.com" style={link}>Website</Link>
-              {' • '}
-              <Link href="mailto:admin@hiddystays.com" style={link}>Support</Link>
-              {' • '}
-              <Link href="https://hiddystays.com/unsubscribe" style={link}>Unsubscribe</Link>
+              <Link href="https://hiddystays.com" style={link}>
+                Website
+              </Link>
+              {" • "}
+              <Link href="mailto:admin@hiddystays.com" style={link}>
+                Support
+              </Link>
+              {" • "}
+              <Link href="https://hiddystays.com/unsubscribe" style={link}>
+                Unsubscribe
+              </Link>
             </Text>
             <Text style={footerSmall}>
               © 2025 HiddyStays. All rights reserved.
@@ -65,53 +69,79 @@ export const EmailLayout = ({ preview, children }: EmailLayoutProps) => {
   );
 };
 
-// Styles
+// Styles - World-class design system
 const main = {
-  backgroundColor: '#ffffff',
-  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  backgroundColor: colors.softBackground,
+  fontFamily: typography.fontFamily,
 };
 
 const container = {
-  margin: '0 auto',
-  maxWidth: '600px',
+  margin: "0 auto",
+  maxWidth: layout.maxWidth,
+  backgroundColor: colors.white,
 };
 
 const header = {
-  backgroundColor: '#1E3A5F',
-  padding: '20px 30px',
-  textAlign: 'center' as const,
+  backgroundColor: colors.white,
+  padding: `${spacing.md} ${layout.containerPadding}`,
+  textAlign: "center" as const,
+  minHeight: "60px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const logo = {
+  display: "block",
+  margin: "0 auto",
+};
+
+const content = {
+  padding: "0",
 };
 
 const footer = {
-  backgroundColor: '#F9FAFB',
-  padding: '40px 30px',
-  textAlign: 'center' as const,
+  backgroundColor: colors.softBackground,
+  padding: `${spacing.xl} ${layout.containerPadding}`,
+  textAlign: "center" as const,
 };
 
-const footerText = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '4px 0',
+const footerTitle = {
+  ...typography.bodySmall,
+  fontWeight: "700",
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.xs} 0`,
+};
+
+const footerTagline = {
+  ...typography.micro,
+  color: colors.textMedium,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
 const footerDivider = {
-  borderColor: '#E5E7EB',
-  margin: '20px 0',
+  borderColor: colors.divider,
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderLeft: "none",
+  borderRight: "none",
+  borderBottom: "none",
+  margin: `${spacing.md} 0`,
 };
 
 const footerLinks = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '20px 0',
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.md} 0`,
 };
 
 const link = {
-  color: '#1E3A5F',
-  textDecoration: 'none',
+  color: colors.primaryBlue,
+  textDecoration: "none",
 };
 
 const footerSmall = {
-  fontSize: '12px',
-  color: '#9CA3AF',
-  margin: '4px 0',
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `${spacing.xs} 0`,
 };

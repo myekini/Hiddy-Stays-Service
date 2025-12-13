@@ -9,6 +9,7 @@ import {
   Calendar,
   DollarSign,
   Users,
+  User,
   Star,
   TrendingUp,
   Eye,
@@ -43,6 +44,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
@@ -94,13 +112,80 @@ function HostDashboard() {
     avg_rating: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [showBookings, setShowBookings] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(
     null
   );
   const [hostProfileId, setHostProfileId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
+
+  // Consolidated refresh function for properties and stats
+  const refreshDashboardData = async (skipLoading = false) => {
+    if (!skipLoading) setLoading(true);
+    try {
+      if (!user?.id) return;
+
+      // Resolve host profile ID
+      let hostIdParam = hostProfileId;
+      if (!hostIdParam) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+        if (profile?.id) {
+          hostIdParam = profile.id as string;
+          setHostProfileId(profile.id as string);
+        }
+      }
+
+      if (!hostIdParam) return;
+
+      // Refresh properties with metrics
+      const propertiesResponse = await fetch(`/api/host/properties?host_id=${hostIdParam}`);
+      if (propertiesResponse.ok) {
+        const propertiesData = await propertiesResponse.json();
+        setProperties(propertiesData.properties || []);
+      }
+
+      // Refresh stats
+      const statsResponse = await fetch(`/api/host/stats?host_id=${hostIdParam}`);
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+      }
+
+      // Refresh recent bookings
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const bookingsResponse = await fetch(
+          `/api/bookings?host_id=${hostIdParam}&limit=5`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        if (bookingsResponse.ok) {
+          const bookingsData = await bookingsResponse.json();
+          setRecentBookings(bookingsData.bookings || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing dashboard data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      if (!skipLoading) setLoading(false);
+    }
+  };
 
   // Load real data from API
   useEffect(() => {
@@ -111,7 +196,7 @@ function HostDashboard() {
         // Resolve host profile ID (profiles.id) from auth user.id once
         let hostIdParam = hostProfileId;
         if (!hostIdParam) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("id")
             .eq("user_id", user.id)
@@ -120,41 +205,77 @@ function HostDashboard() {
             hostIdParam = profile.id as string;
             setHostProfileId(profile.id as string);
           } else {
-            // Fallback to auth user id if profile lookup fails
-            hostIdParam = user.id;
+            console.error("No profile found for user:", user.id, profileError);
+
+            // Attempt to auto-create missing profile (same pattern as middleware.ts)
+            const { error: createError } = await supabase.rpc(
+              "create_missing_profile",
+              {
+                user_uuid: user.id,
+              }
+            );
+
+            if (createError) {
+              console.error("Error creating missing profile:", createError);
+              toast({
+                title: "Profile Error",
+                description: "Unable to create your profile. Please sign out and sign in again.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            const { data: newProfile, error: newProfileError } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("user_id", user.id)
+              .single();
+
+            if (!newProfile?.id) {
+              console.error("Failed to fetch newly created profile:", newProfileError);
+              toast({
+                title: "Profile Error",
+                description: "Profile was created but could not be loaded. Please refresh the page.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            hostIdParam = newProfile.id as string;
+            setHostProfileId(newProfile.id as string);
           }
         }
 
-        // Load properties for this host only
-        const propertiesResponse = await fetch(`/api/properties?host_id=${hostIdParam}`);
+        // Load properties for this host only (using host-specific API)
+        console.log("Loading properties for host ID:", hostIdParam);
+        const propertiesResponse = await fetch(`/api/host/properties?host_id=${hostIdParam}`);
         if (propertiesResponse.ok) {
           const propertiesData = await propertiesResponse.json();
-          // Transform API response to match the Property interface
-          const transformedProperties = (propertiesData.properties || []).map((prop: any) => ({
-            id: prop.id,
-            title: prop.title,
-            address: prop.address,
-            price_per_night: prop.price_per_night,
-            bedrooms: prop.bedrooms,
-            bathrooms: prop.bathrooms,
-            images: prop.metrics?.images || [],
-            is_active: prop.is_active,
-            rating: prop.rating || prop.metrics?.avg_rating || 0,
-            review_count: prop.review_count || prop.metrics?.review_count || 0,
-            booking_count: prop.metrics?.total_bookings || 0,
-            revenue: prop.metrics?.total_revenue || 0,
-            occupancy_rate: prop.metrics?.occupancy_rate || 0,
-          }));
-          setProperties(transformedProperties);
+          console.log("Properties response:", propertiesData);
+          // Host API already returns properties with all required metrics
+          setProperties(propertiesData.properties || []);
+        } else {
+          console.error("Failed to load properties:", await propertiesResponse.text());
         }
 
-        // Load bookings
-        const bookingsResponse = await fetch(
-          `/api/bookings?host_id=${hostIdParam}&limit=5`
-        );
-        if (bookingsResponse.ok) {
-          const bookingsData = await bookingsResponse.json();
-          setRecentBookings(bookingsData.bookings || []);
+        // Load bookings with authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const bookingsResponse = await fetch(
+            `/api/bookings?host_id=${hostIdParam}&limit=5`,
+            {
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          if (bookingsResponse.ok) {
+            const bookingsData = await bookingsResponse.json();
+            setRecentBookings(bookingsData.bookings || []);
+          } else {
+            console.error("Failed to load bookings:", await bookingsResponse.text());
+          }
         }
 
         // Load stats
@@ -179,6 +300,48 @@ function HostDashboard() {
     loadDashboardData();
   }, [user?.id, toast, hostProfileId]);
 
+  const handleDeleteProperty = async () => {
+    if (!propertyToDelete) return;
+
+    try {
+      // Get auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch(`/api/properties/${propertyToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success! 🎉",
+          description: "Property deleted successfully",
+        });
+        setShowDeleteDialog(false);
+        setPropertyToDelete(null);
+        // Refresh dashboard data
+        refreshDashboardData(true);
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete property");
+      }
+    } catch (error) {
+      console.error("Error deleting property:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete property",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -193,32 +356,26 @@ function HostDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
       <div className="container mx-auto px-6 py-12">
-        {/* Monte-inspired Header */}
-        <div className="relative mb-16">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-sm text-slate-600 mb-2">
-                <Home className="w-4 h-4" />
-                <span>Property Management</span>
-              </div>
-              <h1 className="text-4xl lg:text-5xl font-light text-slate-900 tracking-tight">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900">
                 Host Dashboard
               </h1>
-              <p className="text-lg text-slate-600 font-light max-w-2xl">
-                Welcome back, {user?.user_metadata?.first_name || "Host"}. Manage your properties with elegance and ease.
+              <p className="text-gray-600 mt-1">
+                Welcome back, {user?.user_metadata?.first_name || "Host"}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
-                className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
-                onClick={() => setShowBookings(true)}
+                onClick={() => setActiveTab("bookings")}
               >
                 <Calendar className="w-4 h-4 mr-2" />
-                View Bookings
+                Bookings
               </Button>
               <Button
-                className="bg-slate-900 hover:bg-slate-800 text-white shadow-md hover:shadow-lg transition-all duration-200"
                 onClick={() => {
                   setSelectedProperty(null);
                   setShowPropertyForm(true);
@@ -231,143 +388,75 @@ function HostDashboard() {
           </div>
         </div>
 
-        {/* Monte-inspired Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300 group">
-              <CardContent className="p-8">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 bg-slate-100 group-hover:bg-slate-200 rounded-xl flex items-center justify-center transition-all duration-200">
-                      <Home className="w-6 h-6 text-slate-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Total</p>
-                      <p className="text-3xl font-light text-slate-900 tracking-tight">
-                        {stats.total_properties}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-900">Properties</span>
-                      <span className="text-xs text-slate-500 flex items-center gap-1">
-                        <ArrowUpRight className="w-3 h-3" />
-                        +2 this month
-                      </span>
-                    </div>
-                  </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <Home className="w-5 h-5 text-blue-600" />
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Properties</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {stats.total_properties}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-          >
-            <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300 group">
-              <CardContent className="p-8">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center transition-all duration-200">
-                      <Calendar className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Active</p>
-                      <p className="text-3xl font-light text-slate-900 tracking-tight">
-                        {stats.active_bookings}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-900">Bookings</span>
-                      <span className="text-xs text-emerald-600 flex items-center gap-1">
-                        <ArrowUpRight className="w-3 h-3" />
-                        +12% from last month
-                      </span>
-                    </div>
-                  </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-emerald-50 rounded-lg">
+                  <Calendar className="w-5 h-5 text-emerald-600" />
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Bookings</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {stats.active_bookings}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
-          >
-            <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300 group">
-              <CardContent className="p-8">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 bg-blue-50 group-hover:bg-blue-100 rounded-xl flex items-center justify-center transition-all duration-200">
-                      <DollarSign className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Monthly</p>
-                      <p className="text-3xl font-light text-slate-900 tracking-tight">
-                        ${stats.monthly_revenue.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-900">Revenue</span>
-                      <span className="text-xs text-blue-600 flex items-center gap-1">
-                        <ArrowUpRight className="w-3 h-3" />
-                        +8% from last month
-                      </span>
-                    </div>
-                  </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-green-600" />
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Revenue</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    ${stats.monthly_revenue.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
-          >
-            <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300 group">
-              <CardContent className="p-8">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 bg-amber-50 group-hover:bg-amber-100 rounded-xl flex items-center justify-center transition-all duration-200">
-                      <Star className="w-6 h-6 text-amber-500" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Average</p>
-                      <p className="text-3xl font-light text-slate-900 tracking-tight">
-                        {stats.avg_rating}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-900">Rating</span>
-                      <span className="text-xs text-amber-600 flex items-center gap-1">
-                        <ArrowUpRight className="w-3 h-3" />
-                        +0.2 from last month
-                      </span>
-                    </div>
-                  </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-yellow-50 rounded-lg">
+                  <Star className="w-5 h-5 text-yellow-600" />
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Rating</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {stats.avg_rating}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Monte-styled Main Content */}
-        <Tabs defaultValue="overview" className="space-y-12">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
           <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200">
             <TabsList className="grid w-full grid-cols-4 bg-transparent h-12 p-1">
               <TabsTrigger 
@@ -409,9 +498,10 @@ function HostDashboard() {
                       Manage and monitor your property listings with ease
                     </CardDescription>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("properties")}
                     className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
                   >
                     <Eye className="w-4 h-4 mr-2" />
@@ -420,6 +510,27 @@ function HostDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
+                {properties.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Home className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-slate-900 mb-2">No properties yet</h3>
+                    <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+                      Start hosting by adding your first property. It only takes a few minutes.
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setSelectedProperty(null);
+                        setShowPropertyForm(true);
+                      }}
+                      className="bg-slate-900 hover:bg-slate-800 text-white"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Your First Property
+                    </Button>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {properties.map((property, index) => (
                     <motion.div
@@ -467,14 +578,11 @@ function HostDashboard() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedProperty(property);
-                                      setShowPropertyForm(true);
-                                    }}
-                                  >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View
+                                  <DropdownMenuItem asChild>
+                                    <a href={`/property/${property.id}`} target="_blank" rel="noopener noreferrer">
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View on Site
+                                    </a>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => {
@@ -483,7 +591,7 @@ function HostDashboard() {
                                     }}
                                   >
                                     <Edit className="w-4 h-4 mr-2" />
-                                    Edit
+                                    Edit Property
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => {
@@ -493,6 +601,16 @@ function HostDashboard() {
                                   >
                                     <Calendar className="w-4 h-4 mr-2" />
                                     Manage Calendar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setPropertyToDelete(property);
+                                      setShowDeleteDialog(true);
+                                    }}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    Delete Property
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -527,17 +645,17 @@ function HostDashboard() {
                                 <div className="flex items-center justify-center gap-1 mb-1">
                                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                                   <span className="text-sm font-semibold text-slate-900">
-                                    {property.rating}
+                                    {property.rating || 0}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500">
-                                  {property.review_count} reviews
+                                  {property.review_count || 0} reviews
                                 </p>
                               </div>
 
                               <div className="text-center">
                                 <div className="text-sm font-semibold text-slate-900 mb-1">
-                                  {property.occupancy_rate}%
+                                  {property.occupancy_rate || 0}%
                                 </div>
                                 <p className="text-xs text-slate-500">
                                   Occupancy
@@ -546,7 +664,7 @@ function HostDashboard() {
 
                               <div className="text-center">
                                 <div className="text-sm font-semibold text-slate-900 mb-1">
-                                  ${property.revenue.toLocaleString()}
+                                  ${(property.revenue || 0).toLocaleString()}
                                 </div>
                                 <p className="text-xs text-slate-500">
                                   Revenue
@@ -559,120 +677,185 @@ function HostDashboard() {
                     </motion.div>
                   ))}
                 </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Recent Bookings Section */}
-            <Card>
-              <CardHeader>
+            <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">
+              <CardHeader className="pb-8">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Recent Bookings</CardTitle>
-                    <CardDescription>
-                      Latest booking requests and confirmations
+                  <div className="space-y-2">
+                    <CardTitle className="text-2xl font-light text-slate-900 tracking-tight">Recent Bookings</CardTitle>
+                    <CardDescription className="text-slate-600 font-light">
+                      Latest booking requests and confirmations from your guests
                     </CardDescription>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setActiveTab("bookings")}
+                    className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
                     View All
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentBookings.map((booking, index) => (
-                    <motion.div
-                      key={booking.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                    >
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-semibold text-foreground">
-                                  {booking.guest_name}
-                                </h3>
-                                <Badge
-                                  variant={
-                                    booking.status === "confirmed"
-                                      ? "default"
-                                      : booking.status === "pending"
-                                        ? "secondary"
-                                        : "destructive"
-                                  }
-                                  className={`${booking.status === "confirmed" ? "bg-primary" : booking.status === "pending" ? "bg-accentCustom-400" : ""}`}
+                {recentBookings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-slate-900 mb-2">No recent bookings</h3>
+                    <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+                      Your recent booking activity will appear here once guests start making reservations.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {recentBookings.map((booking, index) => (
+                      <motion.div
+                        key={booking.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: index * 0.1 }}
+                      >
+                        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 group bg-slate-50/50 hover:bg-white">
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center">
+                                    <User className="w-5 h-5 text-slate-600" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <h3 className="font-semibold text-slate-900 group-hover:text-slate-800">
+                                        {booking.guest_name}
+                                      </h3>
+                                      <Badge
+                                        variant="secondary"
+                                        className={`text-xs font-medium px-3 py-1 ${
+                                          booking.status === "confirmed"
+                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                            : booking.status === "pending"
+                                              ? "bg-amber-100 text-amber-700 border-amber-200"
+                                              : "bg-red-100 text-red-700 border-red-200"
+                                        }`}
+                                      >
+                                        {booking.status === "confirmed" && (
+                                          <CheckCircle className="w-3 h-3 mr-1" />
+                                        )}
+                                        {booking.status === "pending" && (
+                                          <Clock className="w-3 h-3 mr-1" />
+                                        )}
+                                        {booking.status === "cancelled" && (
+                                          <AlertCircle className="w-3 h-3 mr-1" />
+                                        )}
+                                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mt-1">
+                                      {booking.guest_email}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg p-4 border border-slate-100 mb-4">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Home className="w-4 h-4 text-slate-400" />
+                                    <span className="font-medium text-slate-900 text-sm">
+                                      {booking.property_title}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="flex items-center gap-2 text-slate-600">
+                                      <Calendar className="w-4 h-4" />
+                                      <div>
+                                        <p className="font-medium">Check-in</p>
+                                        <p>{new Date(booking.check_in).toLocaleDateString('en-US', { 
+                                          month: 'short', 
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-600">
+                                      <Calendar className="w-4 h-4" />
+                                      <div>
+                                        <p className="font-medium">Check-out</p>
+                                        <p>{new Date(booking.check_out).toLocaleDateString('en-US', { 
+                                          month: 'short', 
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <DollarSign className="w-4 h-4 text-slate-400" />
+                                    <span className="font-semibold text-slate-900 text-lg">
+                                      ${booking.total_amount.toLocaleString()}
+                                    </span>
+                                    <span className="text-sm text-slate-500">total</span>
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {new Date(booking.created_at).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric'
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 ml-6">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                 >
-                                  {booking.status === "confirmed" && (
-                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                  )}
-                                  {booking.status === "pending" && (
-                                    <Clock className="w-3 h-3 mr-1" />
-                                  )}
-                                  {booking.status === "cancelled" && (
-                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                  )}
-                                  {booking.status.charAt(0).toUpperCase() +
-                                    booking.status.slice(1)}
-                                </Badge>
-                              </div>
-
-                              <p className="text-sm text-muted-foreground mb-2">
-                                {booking.property_title}
-                              </p>
-
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="w-4 h-4" />
-                                  <span>
-                                    {new Date(
-                                      booking.check_in
-                                    ).toLocaleDateString()}{" "}
-                                    -{" "}
-                                    {new Date(
-                                      booking.check_out
-                                    ).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <DollarSign className="w-4 h-4" />
-                                  <span className="font-medium">
-                                    ${booking.total_amount}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 ml-4">
-                              <Button variant="ghost" size="sm">
-                                <MessageSquare className="w-4 h-4 mr-2" />
-                                Contact
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem>
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Details
+                                  <MessageSquare className="w-4 h-4 mr-2" />
+                                  Contact
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                    >
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <a href={`/property/${booking.property_id}`} target="_blank" rel="noopener noreferrer">
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View Property
+                                    </a>
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => setActiveTab("bookings")}
+                                  >
                                     <Settings className="w-4 h-4 mr-2" />
-                                    Manage Booking
+                                    Manage Bookings
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
-                              </DropdownMenu>
+                                </DropdownMenu>
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -712,7 +895,7 @@ function HostDashboard() {
                       <Card className="overflow-hidden">
                         <div className="relative">
                           <img
-                            src={property.images?.[0] || '/assets/default-property.jpg'}
+                            src={property.images?.[0] || '/placeholder.svg'}
                             alt={property.title}
                             className="w-full h-48 object-cover"
                           />
@@ -791,7 +974,19 @@ function HostDashboard() {
 
           {/* Bookings Tab */}
           <TabsContent value="bookings">
-            <BookingManagement hostId={user?.id} />
+            {hostProfileId ? (
+              <BookingManagement 
+                hostId={hostProfileId}
+                onBookingUpdate={() => refreshDashboardData(true)}
+              />
+            ) : (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading bookings...</p>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Analytics Tab */}
@@ -892,35 +1087,8 @@ setSelectedProperty(properties[0]!);
           setSelectedProperty(null);
         }}
         onSuccess={(property) => {
-          // Refresh properties list
-          const loadDashboardData = async () => {
-            try {
-              if (!user?.id) return;
-
-              // Resolve host profile ID
-              let hostIdParam = hostProfileId;
-              if (!hostIdParam) {
-                const { data: profile } = await supabase
-                  .from("profiles")
-                  .select("id")
-                  .eq("user_id", user.id)
-                  .single();
-                hostIdParam = profile?.id || user.id;
-              }
-
-              // Load properties
-              const propertiesResponse = await fetch(
-                `/api/properties?host_id=${hostIdParam}`
-              );
-              if (propertiesResponse.ok) {
-                const propertiesData = await propertiesResponse.json();
-                setProperties(propertiesData.properties || []);
-              }
-            } catch (error) {
-              console.error("Error refreshing properties:", error);
-            }
-          };
-          loadDashboardData();
+          // Refresh dashboard data
+          refreshDashboardData(true);
         }}
       />
 
@@ -935,6 +1103,27 @@ setSelectedProperty(properties[0]!);
           }}
         />
       )}
+
+      {/* Delete Property Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Property</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{propertyToDelete?.title}"? This action cannot be undone and will remove all associated bookings and data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProperty}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Property
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

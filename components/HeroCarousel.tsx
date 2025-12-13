@@ -7,39 +7,39 @@ import { cn } from "@/lib/utils";
 
 const CAROUSEL_IMAGES = [
   {
-    src: "/bedroom.jpeg",
+    src: "/assets/bed_lanscape.jpg",
     alt: "Luxury bedroom with panoramic city view",
   },
   {
-    src: "/kitchen.jpeg",
+    src: "/assets/night_city_view_from_upstair.jpg",
+    alt: "Breathtaking night city view from apartment",
+  },
+  {
+    src: "/assets/dining_area.jpg",
+    alt: "Elegant dining space",
+  },
+  {
+    src: "/assets/Full_kitchen.jpg",
     alt: "Modern fully equipped kitchen space",
   },
   {
-    src: "/balcony.jpeg",
-    alt: "Stunning city skyline view from private balcony",
+    src: "/assets/bathoom_and_toilet.jpg",
+    alt: "Sparkling clean modern bathroom",
   },
   {
-    src: "/loubby.jpeg",
-    alt: "Elegant hotel-style lobby and entrance",
-  },
-  {
-    src: "/utensils.jpeg",
-    alt: "Premium kitchen amenities and dining setup",
+    src: "/assets/apartment_lobby_ss.jpg",
+    alt: "Elegant building lobby and waiting area",
   },
 ];
 
 const AUTO_SCROLL_INTERVAL = 5000; // 5 seconds
-const TRANSITION_DURATION = 1000; // 1 second
 
 export function HeroCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const goToSlide = useCallback((index: number) => {
-    setIsTransitioning(true);
     setCurrentIndex(index);
-    setTimeout(() => setIsTransitioning(false), TRANSITION_DURATION);
   }, []);
 
   const goToNext = useCallback(() => {

@@ -2369,6 +2369,199 @@ export const CheckInReminderTemplate = ({
   );
 };
 
+// Template 6: Booking Request (Before Payment)
+export const BookingRequestTemplate = ({
+  guestName,
+  guestEmail,
+  propertyName,
+  checkInDate,
+  checkOutDate,
+  guests,
+  totalAmount,
+  bookingId,
+  paymentUrl,
+}: EmailTemplateProps) => {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    "https://hiddystays.com";
+
+  return (
+    <HiddyStaysBaseTemplate
+      title="Complete Your Booking"
+      preview={`Complete your booking at ${propertyName} - Payment pending`}
+    >
+      <Heading
+        style={{
+          color: brandColors.textDark,
+          fontSize: "24px",
+          fontWeight: "700",
+          margin: "0 0 16px",
+          textAlign: "center",
+        }}
+      >
+        Almost there, {guestName}! 🏠
+      </Heading>
+
+      <Text
+        style={{
+          color: brandColors.textDark,
+          fontSize: "16px",
+          lineHeight: "1.6",
+          textAlign: "center",
+          margin: "0 0 30px",
+        }}
+      >
+        Your booking request for <strong>{propertyName}</strong> has been received.
+        Complete your payment to confirm your reservation.
+      </Text>
+
+      {/* Booking Summary */}
+      <Section
+        style={{
+          backgroundColor: brandColors.background,
+          borderRadius: "12px",
+          padding: "24px",
+          margin: "24px 0",
+        }}
+      >
+        <Heading
+          style={{
+            color: brandColors.textDark,
+            fontSize: "16px",
+            fontWeight: "700",
+            margin: "0 0 16px",
+          }}
+        >
+          📋 Booking Summary
+        </Heading>
+
+        <Row style={{ margin: "0 0 8px" }}>
+          <Column style={{ width: "40%" }}>
+            <Text style={{ color: brandColors.textLight, fontSize: "14px", margin: "0" }}>
+              Property:
+            </Text>
+          </Column>
+          <Column style={{ width: "60%" }}>
+            <Text style={{ color: brandColors.textDark, fontSize: "14px", margin: "0", fontWeight: "600" }}>
+              {propertyName}
+            </Text>
+          </Column>
+        </Row>
+
+        <Row style={{ margin: "0 0 8px" }}>
+          <Column style={{ width: "40%" }}>
+            <Text style={{ color: brandColors.textLight, fontSize: "14px", margin: "0" }}>
+              Check-in:
+            </Text>
+          </Column>
+          <Column style={{ width: "60%" }}>
+            <Text style={{ color: brandColors.textDark, fontSize: "14px", margin: "0" }}>
+              {checkInDate}
+            </Text>
+          </Column>
+        </Row>
+
+        <Row style={{ margin: "0 0 8px" }}>
+          <Column style={{ width: "40%" }}>
+            <Text style={{ color: brandColors.textLight, fontSize: "14px", margin: "0" }}>
+              Check-out:
+            </Text>
+          </Column>
+          <Column style={{ width: "60%" }}>
+            <Text style={{ color: brandColors.textDark, fontSize: "14px", margin: "0" }}>
+              {checkOutDate}
+            </Text>
+          </Column>
+        </Row>
+
+        <Row style={{ margin: "0 0 8px" }}>
+          <Column style={{ width: "40%" }}>
+            <Text style={{ color: brandColors.textLight, fontSize: "14px", margin: "0" }}>
+              Guests:
+            </Text>
+          </Column>
+          <Column style={{ width: "60%" }}>
+            <Text style={{ color: brandColors.textDark, fontSize: "14px", margin: "0" }}>
+              {guests}
+            </Text>
+          </Column>
+        </Row>
+
+        <Hr style={{ borderColor: brandColors.border, margin: "16px 0" }} />
+
+        <Row>
+          <Column style={{ width: "40%" }}>
+            <Text style={{ color: brandColors.textDark, fontSize: "16px", margin: "0", fontWeight: "700" }}>
+              Total:
+            </Text>
+          </Column>
+          <Column style={{ width: "60%" }}>
+            <Text style={{ color: brandColors.accentGreen, fontSize: "20px", margin: "0", fontWeight: "700" }}>
+              ${totalAmount}
+            </Text>
+          </Column>
+        </Row>
+      </Section>
+
+      {/* Payment CTA */}
+      <Section style={{ textAlign: "center", margin: "32px 0" }}>
+        <Button
+          style={{
+            backgroundColor: brandColors.accentGreen,
+            color: "#FFFFFF",
+            padding: "16px 40px",
+            borderRadius: "8px",
+            fontWeight: "700",
+            fontSize: "16px",
+            textDecoration: "none",
+            display: "inline-block",
+          }}
+          href={paymentUrl || `${baseUrl}/bookings`}
+        >
+          Complete Payment →
+        </Button>
+      </Section>
+
+      <Text
+        style={{
+          color: brandColors.textLight,
+          fontSize: "13px",
+          textAlign: "center",
+          margin: "0 0 24px",
+        }}
+      >
+        ⏰ Your booking will be held for 30 minutes. Complete payment to secure your dates.
+      </Text>
+
+      {/* Zero Fees Banner */}
+      <Section
+        style={{
+          backgroundColor: "#ECFDF5",
+          borderRadius: "8px",
+          padding: "16px",
+          textAlign: "center",
+        }}
+      >
+        <Text style={{ color: "#059669", fontSize: "14px", margin: "0", fontWeight: "600" }}>
+          🎉 Zero platform fees — You save more with HiddyStays!
+        </Text>
+      </Section>
+
+      <Text
+        style={{
+          color: brandColors.textLight,
+          fontSize: "13px",
+          textAlign: "center",
+          margin: "24px 0 0",
+        }}
+      >
+        Booking ID: {bookingId}
+      </Text>
+    </HiddyStaysBaseTemplate>
+  );
+};
+
 // Export all templates
 export const HiddyStaysEmailTemplates = {
   BookingConfirmationTemplate,
@@ -2376,5 +2569,6 @@ export const HiddyStaysEmailTemplates = {
   PaymentReceiptTemplate,
   HostWelcomeTemplate,
   CheckInReminderTemplate,
+  BookingRequestTemplate,
 };
 

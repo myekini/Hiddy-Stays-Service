@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -31,7 +30,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -46,9 +44,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Search,
-  Filter,
-  MoreHorizontal,
-  Edit,
   Trash2,
   Eye,
   Shield,
@@ -57,7 +52,6 @@ import {
   Mail,
   Phone,
   Calendar,
-  MapPin,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -68,6 +62,7 @@ interface User {
   last_name: string;
   phone: string;
   is_host: boolean;
+  role?: string;
   is_verified: boolean;
   is_suspended: boolean;
   created_at: string;
@@ -106,79 +101,13 @@ const AdminUserManagement: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userDetailsOpen, setUserDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"user" | "host" | "admin">("user");
+  const [creatingUser, setCreatingUser] = useState(false);
 
-  useEffect(() => {
-    filterUsers();
-  }, [users, searchTerm, filterRole, filterStatus]);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch users with their profiles
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select(
-          `
-          *,
-          bookings!bookings_guest_id_fkey(count),
-          properties(count)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Transform data
-      const transformedUsers: User[] = (profiles || []).map((profile: any) => ({
-        id: profile.id,
-        email: profile.email,
-        first_name: profile.first_name || "",
-        last_name: profile.last_name || "",
-        phone: profile.phone || "",
-        is_host: profile.is_host || false,
-        is_verified: profile.is_verified || false,
-        is_suspended: profile.is_suspended || false,
-        created_at: profile.created_at,
-        last_login: profile.last_login || profile.created_at,
-        total_bookings: profile.bookings?.[0]?.count || 0,
-        total_revenue: 0, // Would need to calculate from bookings
-        properties_count: profile.properties?.[0]?.count || 0,
-      }));
-
-      setUsers(transformedUsers);
-      calculateStats(transformedUsers);
-    } catch (error) {
-      console.error("Error loading users:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStats = (userList: User[]) => {
-    const now = new Date();
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const stats: UserStats = {
-      totalUsers: userList.length,
-      totalHosts: userList.filter((u) => u.is_host).length,
-      totalGuests: userList.filter((u) => !u.is_host).length,
-      verifiedUsers: userList.filter((u) => u.is_verified).length,
-      suspendedUsers: userList.filter((u) => u.is_suspended).length,
-      newThisMonth: userList.filter((u) => new Date(u.created_at) >= thisMonth)
-        .length,
-      activeThisMonth: userList.filter(
-        (u) => new Date(u.last_login) >= thisMonth
-      ).length,
-    };
-
-    setStats(stats);
-  };
-
-  const filterUsers = () => {
+  const filterUsers = useCallback(() => {
     let filtered = users;
 
     // Search filter
@@ -211,7 +140,85 @@ const AdminUserManagement: React.FC = () => {
     }
 
     setFilteredUsers(filtered);
+  }, [users, searchTerm, filterRole, filterStatus]);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch("/api/admin/users?limit=200&offset=0", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Failed to load users");
+      }
+
+      const apiUsers = (data?.users || []) as any[];
+      const transformedUsers: User[] = apiUsers.map((u: any) => ({
+        id: u.user_id || u.id,
+        email: u.email || u?.profiles?.email || "",
+        first_name: u.first_name || "",
+        last_name: u.last_name || "",
+        phone: u.phone || "",
+        role: u.role || "user",
+        is_host: u.is_host || u.role === "host" || u.role === "admin",
+        is_verified: u.is_verified || false,
+        is_suspended: u.is_suspended || false,
+        created_at: u.created_at,
+        last_login: u.last_login_at || u.last_login || u.created_at,
+        total_bookings: u.total_bookings || 0,
+        total_revenue: u.total_revenue || 0,
+        properties_count: u.properties_count || 0,
+      }));
+
+      setUsers(transformedUsers);
+      calculateStats(transformedUsers);
+    } catch (error) {
+      console.error("Error loading users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const calculateStats = (userList: User[]) => {
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const stats: UserStats = {
+      totalUsers: userList.length,
+      totalHosts: userList.filter((u) => u.is_host).length,
+      totalGuests: userList.filter((u) => !u.is_host).length,
+      verifiedUsers: userList.filter((u) => u.is_verified).length,
+      suspendedUsers: userList.filter((u) => u.is_suspended).length,
+      newThisMonth: userList.filter((u) => new Date(u.created_at) >= thisMonth)
+        .length,
+      activeThisMonth: userList.filter(
+        (u) => new Date(u.last_login) >= thisMonth
+      ).length,
+    };
+
+    setStats(stats);
   };
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    filterUsers();
+  }, [filterUsers]);
 
   const handleUserAction = async (userId: string, action: string) => {
     try {
@@ -230,25 +237,86 @@ const AdminUserManagement: React.FC = () => {
         case "unsuspend":
           updateData = { is_suspended: false };
           break;
-        case "delete":
-          // Handle user deletion
-          await supabase.auth.admin.deleteUser(userId);
+        case "delete": {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData?.session?.access_token;
+          if (!token) {
+            throw new Error("No authentication token available");
+          }
+
+          const response = await fetch(`/api/admin/users?userId=${encodeURIComponent(userId)}`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err?.message || err?.error || "Failed to delete user");
+          }
           break;
+        }
       }
 
       if (Object.keys(updateData).length > 0) {
-        const { error } = await supabase
-          .from("profiles")
-          .update(updateData)
-          .eq("id", userId);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) {
+          throw new Error("No authentication token available");
+        }
 
-        if (error) throw error;
+        const response = await fetch("/api/admin/users", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId,
+            updates: updateData,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err?.message || err?.error || "Failed to update user");
+        }
       }
 
       // Reload users
       await loadUsers();
     } catch (error) {
       console.error(`Error performing ${action} on user:`, error);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, role: string) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        throw new Error("No authentication token available");
+      }
+
+      const response = await fetch(`/api/admin/users/${userId}/role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.message || err?.error || "Failed to update user role");
+      }
+
+      await loadUsers();
+    } catch (error) {
+      console.error("Error updating role:", error);
     }
   };
 
@@ -272,11 +340,114 @@ const AdminUserManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <Button onClick={() => setCreateUserOpen(true)}>Create User</Button>
+        </div>
         <p className="text-muted-foreground">
           Manage hosts, guests, and user accounts
         </p>
       </div>
+
+      <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Create a new account and assign an initial role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Email</div>
+              <Input
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="user@example.com"
+                type="email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Password</div>
+              <Input
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                placeholder="Temporary password"
+                type="password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Role</div>
+              <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="host">Host</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCreateUserOpen(false)}
+                disabled={creatingUser}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    setCreatingUser(true);
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    const token = sessionData?.session?.access_token;
+                    if (!token) {
+                      throw new Error("No authentication token available");
+                    }
+
+                    const response = await fetch("/api/admin/users", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        email: newUserEmail,
+                        password: newUserPassword,
+                        role: newUserRole,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      const err = await response.json().catch(() => ({}));
+                      throw new Error(err?.details || err?.message || err?.error || "Failed to create user");
+                    }
+
+                    setNewUserEmail("");
+                    setNewUserPassword("");
+                    setNewUserRole("user");
+                    setCreateUserOpen(false);
+                    await loadUsers();
+                  } catch (e) {
+                    console.error("Create user failed:", e);
+                  } finally {
+                    setCreatingUser(false);
+                  }
+                }}
+                disabled={creatingUser || !newUserEmail || !newUserPassword}
+              >
+                {creatingUser ? "Creating..." : "Create"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -416,9 +587,19 @@ const AdminUserManagement: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={user.is_host ? "default" : "secondary"}>
-                      {user.is_host ? "Host" : "Guest"}
-                    </Badge>
+                    <Select
+                      value={(user.role || (user.is_host ? "host" : "user")) as string}
+                      onValueChange={(value) => handleRoleChange(user.id, value)}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="host">Host</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">

@@ -1,18 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Search,
   Menu,
   User,
   LogOut,
   X,
   Shield,
   Home,
-  Heart,
   Calendar,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,9 +23,10 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import LogoImage from "@/components/LogoImage";
 
 const Header = () => {
-  const { user, authUser, signOut, hasPermission } = useAuth();
+  const { user, signOut, hasPermission } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -79,35 +78,18 @@ const Header = () => {
     <>
       <header className={`nav-modern ${isScrolled ? "scrolled" : ""}`}>
         <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* Modern Logo with Avatar */}
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="relative">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg group-hover:shadow-glow transition-all duration-200">
-                <Home className="h-5 w-5 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-brand-500 rounded-full flex items-center justify-center shadow-sm">
-                <Heart className="h-2.5 w-2.5 text-white fill-current" />
-              </div>
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="relative overflow-hidden rounded-full border border-border/50 shadow-sm group-hover:shadow-md transition-all duration-300">
+              <LogoImage size="md" variant="icon" className="w-10 h-10" />
             </div>
-            <div className="hidden sm:block">
-              <div className="font-display text-xl font-bold text-foreground group-hover:text-brand-600 transition-colors">
-                HiddyStays
-              </div>
-              <div className="text-xs text-muted-foreground font-medium">
-                Zero-Fee Stays
-              </div>
-            </div>
+            <span className="font-display font-bold text-xl tracking-tight hidden sm:block text-foreground group-hover:text-primary transition-colors">
+              HiddyStays
+            </span>
           </Link>
 
           {/* Navigation - Hidden on mobile */}
           <nav className="hidden lg:flex items-center space-x-8">
-            <Link
-              href="/properties"
-              className="text-muted-foreground hover:text-brand-600 transition-all duration-300 font-medium relative group"
-            >
-              Browse Properties
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-500 transition-all duration-300 group-hover:w-full"></span>
-            </Link>
             <a
               href="#features"
               className="text-muted-foreground hover:text-brand-600 transition-all duration-300 font-medium relative group"
@@ -240,22 +222,7 @@ const Header = () => {
             <div className="p-6">
               {/* Mobile Header */}
               <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg" alt="HiddyStays" />
-                    <AvatarFallback className="bg-gradient-to-br from-brand-500 to-brand-600 text-white font-bold text-sm">
-                      <Home className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-display text-lg font-bold text-foreground">
-                      HiddyStays
-                    </div>
-                    <div className="text-xs text-muted-foreground font-medium">
-                      Zero-Fee Stays
-                    </div>
-                  </div>
-                </div>
+                <LogoImage size="sm" />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -268,14 +235,6 @@ const Header = () => {
 
               {/* Mobile Navigation */}
               <nav className="space-y-2 mb-8">
-                <Link
-                  href="/properties"
-                  className="flex items-center px-4 py-3 text-muted-foreground hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950 rounded-lg transition-all duration-200"
-                  onClick={toggleMobileMenu}
-                >
-                  <Search className="w-4 h-4 mr-3" />
-                  Browse Properties
-                </Link>
                 <a
                   href="#features"
                   className="flex items-center px-4 py-3 text-muted-foreground hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950 rounded-lg transition-all duration-200"

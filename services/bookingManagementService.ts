@@ -67,26 +67,40 @@ class BookingManagementService {
       }
 
       // Check for existing bookings in the date range
-      const { data: conflicts, error } = await supabase
+      // Fetch all active bookings and check for overlaps manually
+      const { data: allBookings, error } = await supabase
         .from("bookings")
         .select("check_in_date, check_out_date, status")
         .eq("property_id", propertyId)
-        .in("status", ["confirmed", "pending"])
-        .or(
-          `check_in_date.lte.${checkOutDate},check_out_date.gte.${checkInDate}`
-        );
+        .in("status", ["confirmed", "pending"]); // Only check active bookings
 
       if (error) {
         throw error;
       }
 
-      const hasConflicts = conflicts && conflicts.length > 0;
+      // Check for date overlaps manually
+      // Two date ranges overlap if: start1 < end2 AND start2 < end1
+      const checkIn = new Date(checkInDate);
+      const checkOut = new Date(checkOutDate);
+      
+      const conflicts = (allBookings || []).filter((booking) => {
+        const existingCheckIn = new Date(booking.check_in_date);
+        const existingCheckOut = new Date(booking.check_out_date);
+        
+        // Check if ranges overlap (check-out dates are exclusive)
+        return (
+          checkIn < existingCheckOut && 
+          existingCheckIn < checkOut
+        );
+      });
+
+      const hasConflicts = conflicts.length > 0;
 
       return {
         isValid: !hasConflicts,
         errors: hasConflicts ? ["Selected dates are not available"] : [],
         conflicts: hasConflicts
-          ? conflicts?.map((conflict) => ({
+          ? conflicts.map((conflict) => ({
               checkIn: conflict.check_in_date,
               checkOut: conflict.check_out_date,
             }))

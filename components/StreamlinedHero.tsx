@@ -1,518 +1,149 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Calendar as CalendarIcon,
+  MapPin,
   Users,
-  Loader2,
-  Plus,
-  Minus,
-  ChevronLeft,
-  ChevronRight,
-  ArrowRight,
-  Home,
-  Building2,
+  Wifi,
+  Car,
+  Dumbbell,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { DestinationSearch } from "@/components/DestinationSearch";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
 interface StreamlinedHeroProps {
   className?: string;
 }
 
-// Property types for the tabs
-const PROPERTY_TYPES = [
-  { value: "all", label: "All Properties", icon: Home },
-  { value: "apartment", label: "Apartments", icon: Building2 },
-  { value: "house", label: "Houses", icon: Home },
-];
-
 export function StreamlinedHero({ className }: StreamlinedHeroProps) {
-  const router = useRouter();
-
-  // Property type tab selection
-  const [propertyType, setPropertyType] = useState("all");
-
-  // Location state
-  const [locationQuery, setLocationQuery] = useState("");
-  const [selectedLocation, setSelectedLocation] = useState("");
-  const [selectedCoordinates, setSelectedCoordinates] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-
-  // Date state
-  const [checkInDate, setCheckInDate] = useState<Date>();
-  const [checkOutDate, setCheckOutDate] = useState<Date>();
-  const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
-
-  // Guests state
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
-  const [isGuestsOpen, setIsGuestsOpen] = useState(false);
-
-  // Search state
-  const [isSearching, setIsSearching] = useState(false);
-
-  const handleLocationSelect = (suggestion: any) => {
-    setSelectedLocation(suggestion.description);
-    setSelectedCoordinates(suggestion.coordinates || null);
-  };
-
-  const handleSearch = async () => {
-    if (!locationQuery || !checkInDate || !checkOutDate) {
-      alert("Please fill in destination and dates");
-      return;
-    }
-
-    setIsSearching(true);
-
-    try {
-      const searchParams = new URLSearchParams();
-      searchParams.set("location", selectedLocation || locationQuery);
-      searchParams.set("checkIn", checkInDate.toISOString().slice(0, 10));
-      searchParams.set("checkOut", checkOutDate.toISOString().slice(0, 10));
-      searchParams.set("adults", adults.toString());
-      searchParams.set("children", children.toString());
-      searchParams.set("infants", infants.toString());
-
-      if (propertyType !== "all") {
-        searchParams.set("type", propertyType);
-      }
-
-      if (selectedCoordinates) {
-        searchParams.set("lat", selectedCoordinates.lat.toString());
-        searchParams.set("lng", selectedCoordinates.lng.toString());
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      router.push(`/properties?${searchParams.toString()}`);
-    } catch (error) {
-      console.error("Search error:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const getGuestText = () => {
-    const parts = [];
-    if (adults > 0) parts.push(`${adults} Adult${adults > 1 ? "s" : ""}`);
-    if (children > 0) parts.push(`${children} Child${children > 1 ? "ren" : ""}`);
-    if (infants > 0) parts.push(`${infants} Infant${infants > 1 ? "s" : ""}`);
-    return parts.join(", ") || "Add Guests";
-  };
-
-  const updateGuests = (type: "adults" | "children" | "infants", increment: boolean) => {
-    if (type === "adults") {
-      const newValue = increment ? adults + 1 : adults - 1;
-      if (newValue >= 1 && newValue <= 16) setAdults(newValue);
-    } else if (type === "children") {
-      const newValue = increment ? children + 1 : children - 1;
-      if (newValue >= 0 && newValue <= 10) setChildren(newValue);
-    } else if (type === "infants") {
-      const newValue = increment ? infants + 1 : infants - 1;
-      if (newValue >= 0 && newValue <= 5) setInfants(newValue);
-    }
-  };
-
-  const getMinCheckinDate = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
-  };
-
-  const getMinCheckoutDate = () => {
-    if (!checkInDate) return undefined;
-    const minDate = new Date(checkInDate);
-    minDate.setDate(minDate.getDate() + 1);
-    return minDate;
-  };
-
-  const goToPrevCheckIn = () => {
-    if (checkInDate) {
-      const newDate = new Date(checkInDate);
-      newDate.setDate(newDate.getDate() - 1);
-      if (newDate >= getMinCheckinDate()) {
-        setCheckInDate(newDate);
-      }
-    }
-  };
-
-  const goToNextCheckIn = () => {
-    if (checkInDate) {
-      const newDate = new Date(checkInDate);
-      newDate.setDate(newDate.getDate() + 1);
-      setCheckInDate(newDate);
-    }
-  };
-
-  const goToPrevCheckOut = () => {
-    if (checkOutDate) {
-      const newDate = new Date(checkOutDate);
-      newDate.setDate(newDate.getDate() - 1);
-      const minCheckout = getMinCheckoutDate();
-      if (!minCheckout || newDate >= minCheckout) {
-        setCheckOutDate(newDate);
-      }
-    }
-  };
-
-  const goToNextCheckOut = () => {
-    if (checkOutDate) {
-      const newDate = new Date(checkOutDate);
-      newDate.setDate(newDate.getDate() + 1);
-      setCheckOutDate(newDate);
-    }
-  };
-
   return (
-    <div className={cn("relative w-full h-screen md:h-screen sm:h-[90vh]", className)}>
-      {/* Hero Background with Carousel */}
-      <div className="absolute inset-0 w-full h-full">
-        <HeroCarousel />
-        {/* Gradient Overlay for Better Text Contrast */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/60"></div>
-      </div>
-
-      {/* Content Container */}
-      <div className="relative z-30 container mx-auto px-4 sm:px-8 h-full flex flex-col justify-end pb-8 sm:pb-12 pt-20 sm:pt-24">
-        {/* Hero Text */}
-        <div className="mb-4 sm:mb-6">
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3"
-            style={{
-              textShadow: '0 4px 20px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.6)',
-            }}
-          >
-            Hey Buddy! where are you <br />
-            <span className="font-bold">Staying</span> tonight?
-          </motion.h1>
-
-          <motion.a
-            href="#search"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="text-white hover:text-white/90 transition-colors inline-flex items-center gap-2 text-sm font-medium group"
-            style={{
-              textShadow: '0 2px 10px rgba(0,0,0,0.8)',
-            }}
-          >
-            Explore Now
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </motion.a>
-        </div>
-
-        {/* Search Section */}
-        <motion.div
-          id="search"
+    <div className={cn("relative w-full bg-background pt-24 pb-10 sm:pt-32 sm:pb-16", className)}>
+      {/* 1. Top Centered Typography Header */}
+      <div className="container mx-auto px-4 text-center mb-6 sm:mb-10">
+        <motion.h1 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.6 }}
-          className="max-w-6xl w-full"
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground tracking-tighter mb-4"
         >
-          {/* Property Type Tabs */}
-          <div className="flex gap-0 mb-0 overflow-x-auto">
-            {PROPERTY_TYPES.map((type, index) => {
-              const Icon = type.icon;
-              return (
-                <button
-                  key={type.value}
-                  onClick={() => setPropertyType(type.value)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 sm:px-6 py-3 text-sm font-medium transition-all whitespace-nowrap",
-                    index === 0 && "rounded-tl-lg",
-                    propertyType === type.value
-                      ? "bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                      : "bg-gray-800/70 dark:bg-slate-900/70 backdrop-blur-sm text-white hover:bg-gray-700/70 dark:hover:bg-slate-800/70"
-                  )}
-                >
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden sm:inline">{type.label}</span>
-                  <span className="sm:hidden">{type.label.split(' ')[0]}</span>
-                </button>
-              );
-            })}
-          </div>
+          Your Urban <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">Sanctuary</span>
+        </motion.h1>
+        <motion.p 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+          className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto font-medium leading-relaxed tracking-tight"
+        >
+          Escape to a premium skyline suite with breathtaking views in Surrey, BC.
+        </motion.p>
+      </div>
 
-          {/* Search Form */}
-          <div className="bg-white dark:bg-slate-800 rounded-b-lg rounded-tr-lg shadow-2xl p-4 sm:p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
-              {/* Destination */}
-              <div className="lg:col-span-4">
-                <label className="text-xs text-gray-600 dark:text-gray-300 uppercase mb-2 block font-semibold">
-                  Destination
-                </label>
-                <DestinationSearch
-                  value={locationQuery}
-                  onChange={setLocationQuery}
-                  onSelect={handleLocationSelect}
-                  placeholder="Where are you going?"
-                  isLoading={false}
-                  className="[&_input]:h-11 [&_input]:border-gray-300"
-                />
-              </div>
+      {/* 2. Centered Rounded Image Container */}
+      <div className="container mx-auto px-4 relative z-10">
+        {/* Ambient Glow Effect */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-blue-500/20 blur-[100px] rounded-full pointer-events-none opacity-50 dark:opacity-20"></div>
 
-              {/* Check-in Date */}
-              <div className="lg:col-span-3">
-                <label className="text-xs text-gray-600 dark:text-gray-300 uppercase mb-2 block font-semibold">
-                  Check In
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={goToPrevCheckIn}
-                    disabled={!checkInDate}
-                    className="h-11 px-2 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <Popover open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "flex-1 justify-start text-left font-normal h-11",
-                          !checkInDate && "text-gray-500"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="text-sm">
-                          {checkInDate ? format(checkInDate, "EEE, dd MMM") : "Select date"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={checkInDate}
-                        onSelect={date => {
-                          setCheckInDate(date);
-                          setIsCheckInOpen(false);
-                        }}
-                        disabled={date => date < getMinCheckinDate()}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <button
-                    type="button"
-                    onClick={goToNextCheckIn}
-                    disabled={!checkInDate}
-                    className="h-11 px-2 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="relative w-full max-w-6xl mx-auto aspect-[16/9] sm:aspect-[21/9] rounded-[2rem] sm:rounded-[3rem] overflow-hidden shadow-2xl ring-1 ring-white/10"
+        >
+          <HeroCarousel />
+          
+          {/* Refined Gradient Overlay */}
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
+        </motion.div>
+
+        {/* 3. Floating 'Pill' Bar (Overlapping Bottom) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.6, type: "spring", stiffness: 100 }}
+          className="absolute left-0 right-0 -bottom-8 sm:-bottom-10 flex justify-center pointer-events-none z-20"
+        >
+          <div className="pointer-events-auto bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] p-2 pl-6 pr-2 max-w-4xl w-auto mx-auto flex flex-col sm:flex-row items-center gap-4 sm:gap-8 ring-1 ring-black/5 dark:ring-white/10">
+            
+            {/* Info Group: Location */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                  <MapPin className="w-5 h-5" />
                 </div>
-              </div>
-
-              {/* Check-out Date */}
-              <div className="lg:col-span-3">
-                <label className="text-xs text-gray-600 dark:text-gray-300 uppercase mb-2 block font-semibold">
-                  Check Out
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={goToPrevCheckOut}
-                    disabled={!checkOutDate}
-                    className="h-11 px-2 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <Popover open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "flex-1 justify-start text-left font-normal h-11",
-                          !checkOutDate && "text-gray-500"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="text-sm">
-                          {checkOutDate ? format(checkOutDate, "EEE, dd MMM") : "Select date"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={checkOutDate}
-                        onSelect={date => {
-                          setCheckOutDate(date);
-                          setIsCheckOutOpen(false);
-                        }}
-                        disabled={date => {
-                          const minDate = getMinCheckoutDate();
-                          return !minDate || date < minDate;
-                        }}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <button
-                    type="button"
-                    onClick={goToNextCheckOut}
-                    disabled={!checkOutDate}
-                    className="h-11 px-2 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
+                <div className="text-left">
+                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Location</div>
+                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">Surrey, BC</div>
                 </div>
-              </div>
-
-              {/* Guests Dropdown */}
-              <div className="lg:col-span-2">
-                <label className="text-xs text-gray-600 dark:text-gray-300 uppercase mb-2 block font-semibold">
-                  Guests
-                </label>
-                <DropdownMenu open={isGuestsOpen} onOpenChange={setIsGuestsOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start h-11 font-normal"
-                    >
-                      <Users className="mr-2 h-4 w-4 shrink-0 text-gray-500" />
-                      <span className="truncate text-sm">{getGuestText()}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-80 p-6" align="end">
-                    <div className="space-y-6">
-                      {/* Adults */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-sm">Adults</div>
-                          <div className="text-xs text-gray-500">Ages 13+</div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("adults", false)}
-                            disabled={adults <= 1}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{adults}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("adults", true)}
-                            disabled={adults >= 16}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Children */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-sm">Children</div>
-                          <div className="text-xs text-gray-500">Ages 2-12</div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("children", false)}
-                            disabled={children <= 0}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{children}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("children", true)}
-                            disabled={children >= 10}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Infants */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-sm">Infants</div>
-                          <div className="text-xs text-gray-500">Under 2</div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("infants", false)}
-                            disabled={infants <= 0}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{infants}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateGuests("infants", true)}
-                            disabled={infants >= 5}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
 
-            {/* Search Button */}
-            <div className="mt-4 sm:mt-6">
-              <Button
-                onClick={handleSearch}
-                disabled={!locationQuery || !checkInDate || !checkOutDate || isSearching}
-                className="w-full h-11 sm:h-12 bg-gray-900 hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-semibold text-sm sm:text-base transition-colors"
-              >
-                {isSearching ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    Search Properties
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </>
-                )}
-              </Button>
+            {/* Divider (Desktop) */}
+            <div className="hidden sm:block w-px h-10 bg-border/50"></div>
+
+            {/* Info Group: Guests */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Guests</div>
+                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">1-2 Guests</div>
+                </div>
+              </div>
             </div>
+
+            {/* Divider (Desktop) */}
+            <div className="hidden sm:block w-px h-10 bg-border/50"></div>
+
+            {/* Info Group: Price */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Price</div>
+                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">$140 <span className="font-normal text-muted-foreground">/ night</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <Button 
+              size="lg" 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg hover:shadow-blue-500/25 transition-all duration-300"
+              asChild
+            >
+              <Link href="/property/ed71c0f6-2204-4d14-b04c-6081b9d22c67">
+                Book Now
+              </Link>
+            </Button>
+
           </div>
         </motion.div>
+      </div>
+
+      {/* 4. Amenities Strip (Optional, below image) */}
+      <div className="container mx-auto px-4 mt-20 sm:mt-16">
+        <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-muted-foreground">
+           <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full text-sm font-medium border border-border/50">
+             <Wifi className="w-4 h-4 text-blue-500" />
+             <span>High-Speed WiFi</span>
+           </div>
+           <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full text-sm font-medium border border-border/50">
+             <Car className="w-4 h-4 text-green-500" />
+             <span>Free Parking</span>
+           </div>
+           <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full text-sm font-medium border border-border/50">
+             <Dumbbell className="w-4 h-4 text-purple-500" />
+             <span>Fitness Center</span>
+           </div>
+        </div>
       </div>
     </div>
   );

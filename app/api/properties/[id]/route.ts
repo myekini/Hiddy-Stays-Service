@@ -27,14 +27,13 @@ export async function GET(
 
     console.log(`Fetching property: ${propertyId}`);
 
-    // Fetch property with related data
+    // Fetch property with related data (excluding images for now)
     const { data: property, error } = await supabase
       .from("properties")
       .select(
         `
         *,
-        property_images!property_images_property_id_fkey(*),
-        profiles!properties_host_id_fkey(
+        profiles(
           first_name,
           last_name,
           avatar_url,
@@ -61,19 +60,92 @@ export async function GET(
       );
     }
 
-    // Transform the property data
+    // Fetch images for this specific property with all necessary fields
+    const { data: propertyImages, error: imagesError } = await supabase
+      .from("property_images")
+      .select(`
+        id, 
+        property_id, 
+        public_url, 
+        storage_bucket, 
+        storage_path, 
+        is_primary, 
+        display_order,
+        width,
+        height,
+        mime_type,
+        file_name
+      `)
+      .eq("property_id", propertyId)
+      .order("is_primary", { ascending: false })
+      .order("display_order", { ascending: true });
+
+    if (imagesError) {
+      console.error("Error fetching property images:", imagesError);
+    }
+
+    // Process images to get the best available URL and include all image metadata
+    const processedImages = await Promise.all(
+      (propertyImages || []).map(async (img) => {
+        let url = img.public_url;
+        
+        // Try to get a signed URL for better reliability
+        if (img.storage_bucket && img.storage_path) {
+          try {
+            const { data: signed } = await supabase.storage
+              .from(img.storage_bucket)
+              .createSignedUrl(img.storage_path, 3600); // 1 hour
+              
+            if (signed?.signedUrl) {
+              url = signed.signedUrl;
+            }
+          } catch (error) {
+            console.error("Error creating signed URL:", error);
+          }
+        }
+
+        return {
+          id: img.id,
+          url,
+          is_primary: img.is_primary,
+          display_order: img.display_order,
+          width: img.width,
+          height: img.height,
+          mime_type: img.mime_type,
+          file_name: img.file_name
+        };
+      })
+    );
+
+    // Filter out any images without a valid URL and sort by display order
+    const validImages = processedImages
+      .filter(img => img.url && img.url.trim() !== "")
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+    // Extract just the URLs for backward compatibility
+    const imageUrls = validImages.map(img => img.url);
+
     const transformedProperty = {
       ...property,
+      images: imageUrls,
+      property_images: validImages, // Include full image objects
       metrics: {
-        images:
-          property.property_images?.map((img: any) => img.image_url) || [],
+        images: imageUrls,
+        image_count: validImages.length
       },
     };
 
-    return NextResponse.json({
+    return NextResponse.json(
+      {
       success: true,
       property: transformedProperty,
-    });
+      },
+      {
+        headers: {
+          "cache-control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching property:", error);
     return NextResponse.json(
@@ -162,27 +234,85 @@ export async function PUT(
     }
 
     // Update images if provided
-    if (body.images) {
-      // Delete existing images
-      await supabase
+    if (Array.isArray(body.images)) {
+      const normalizeUrl = (value: string) => {
+        try {
+          const u = new URL(value);
+          return `${u.origin}${u.pathname}`;
+        } catch {
+          return value.split("?")[0] || value;
+        }
+      };
+
+      const incoming = (body.images as unknown[])
+        .filter((v): v is string => typeof v === "string" && v.trim() !== "")
+        .map((v) => ({ raw: v, normalized: normalizeUrl(v.trim()) }));
+
+      const { data: existingImages, error: existingError } = await supabase
         .from("property_images")
-        .delete()
+        .select("id, public_url")
         .eq("property_id", propertyId);
 
-      // Add new images
-      if (body.images.length > 0) {
-        const imageInserts = body.images.map((imageUrl: string) => ({
-          property_id: propertyId,
-          image_url: imageUrl,
-          is_primary: body.images.indexOf(imageUrl) === 0,
-        }));
+      if (existingError) {
+        console.error("Error loading existing images:", existingError);
+      } else {
+        const existingByNormalized = new Map<string, { id: string; public_url: string | null }>();
+        (existingImages || []).forEach((img: any) => {
+          const publicUrl = typeof img.public_url === "string" ? img.public_url : "";
+          existingByNormalized.set(normalizeUrl(publicUrl), {
+            id: img.id as string,
+            public_url: img.public_url as string | null,
+          });
+        });
 
-        const { error: imageError } = await supabase
-          .from("property_images")
-          .insert(imageInserts);
+        // Update ordering/is_primary for existing rows
+        for (let i = 0; i < incoming.length; i++) {
+          const item = incoming[i];
+          if (!item) continue;
+          const match = existingByNormalized.get(item.normalized);
+          if (!match) continue;
 
-        if (imageError) {
-          console.error("Error updating images:", imageError);
+          const { error: updateImageError } = await supabase
+            .from("property_images")
+            .update({
+              display_order: i,
+              is_primary: i === 0,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", match.id);
+
+          if (updateImageError) {
+            console.error("Error updating image order:", updateImageError);
+          }
+        }
+
+        // Insert any brand-new URLs (do not overwrite storage metadata for existing images)
+        const toInsert = incoming.filter((item) => !existingByNormalized.has(item.normalized));
+        if (toInsert.length > 0) {
+          const inserts = toInsert.map((item, idx) => ({
+            property_id: propertyId,
+            public_url: item.normalized,
+            is_primary: incoming.length > 0 ? false : idx === 0,
+            display_order: incoming.findIndex((x) => x.normalized === item.normalized),
+          }));
+
+          const { error: insertError } = await supabase
+            .from("property_images")
+            .insert(inserts);
+
+          if (insertError) {
+            console.error("Error inserting new images:", insertError);
+          }
+        }
+
+        // Keep property image_count in sync
+        const { error: countError } = await supabase
+          .from("properties")
+          .update({ image_count: incoming.length, updated_at: new Date().toISOString() })
+          .eq("id", propertyId);
+
+        if (countError) {
+          console.error("Error updating property image_count:", countError);
         }
       }
     }

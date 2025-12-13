@@ -5,8 +5,10 @@ import {
   Button,
   Row,
   Column,
+  Hr,
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
+import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
 
 interface BookingConfirmationProps {
   guestName: string;
@@ -47,86 +49,64 @@ export const BookingConfirmation = ({
 }: BookingConfirmationProps) => {
   return (
     <EmailLayout preview={`Your stay at ${propertyName} is confirmed!`}>
-      {/* Hero Image */}
-      <Section style={heroSection}>
+      {/* Hero Title Section */}
+      <Section style={heroTitleSection}>
+        <Text style={heroTitle}>Your stay is confirmed 🏠</Text>
+      </Section>
+
+      {/* Property Image */}
+      <Section style={imageSection}>
         <Img
           src={propertyImage}
           alt={propertyName}
-          width="600"
-          height="300"
-          style={heroImage}
+          width="640"
+          height="320"
+          style={propertyImageStyle}
         />
       </Section>
 
       {/* Greeting */}
       <Section style={greetingSection}>
-        <Text style={greeting}>Hey {guestName}! 🎉</Text>
+        <Text style={greeting}>Hey {guestName} 🎉</Text>
         <Text style={mainMessage}>
-          Great news! Your booking at <strong>{propertyName}</strong> is confirmed.
-        </Text>
-        <Text style={subMessage}>
-          {hostName} is excited to welcome you on {checkInDate}.
+          Your stay at <strong>{propertyName}</strong> is confirmed.
         </Text>
       </Section>
 
-      {/* Booking Details Card */}
+      {/* Booking Summary Card */}
       <Section style={cardSection}>
-        <Section style={detailsCard}>
-          <Text style={cardTitle}>🏠 Your Booking Details</Text>
-          <Text style={divider}>━━━━━━━━━━━━━━━━━━━━</Text>
-
+        <Section style={bookingCard}>
+          <Text style={cardTitle}>{propertyName}</Text>
+          
+          <Hr style={softDivider} />
+          
           <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Property:</Text>
+            <Column style={detailColumn}>
+              <Text style={detailLabel}>Check-in</Text>
+              <Text style={detailValue}>{checkInDate}</Text>
+              <Text style={detailSubtext}>{checkInTime}</Text>
             </Column>
-            <Column>
-              <Text style={detailValue}>{propertyName}</Text>
+            <Column style={detailColumn}>
+              <Text style={detailLabel}>Check-out</Text>
+              <Text style={detailValue}>{checkOutDate}</Text>
+              <Text style={detailSubtext}>{checkOutTime}</Text>
             </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Address:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{propertyAddress}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Check-in:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{checkInDate} at {checkInTime}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Check-out:</Text>
-            </Column>
-            <Column>
-              <Text style={detailValue}>{checkOutDate} at {checkOutTime}</Text>
-            </Column>
-          </Row>
-
-          <Row style={detailRow}>
-            <Column>
-              <Text style={detailLabel}>Guests:</Text>
-            </Column>
-            <Column>
+            <Column style={detailColumn}>
+              <Text style={detailLabel}>Guests</Text>
               <Text style={detailValue}>{guests}</Text>
             </Column>
           </Row>
 
-          <Text style={divider}>━━━━━━━━━━━━━━━━━━━━</Text>
+          <Hr style={softDivider} />
 
-          <Text style={paymentTitle}>💰 Payment Summary</Text>
-          <Text style={totalAmountStyle}>Total Paid: ${totalAmount.toFixed(2)}</Text>
-          <Text style={zeroFeeNote}>
-            (Zero platform fees - transparent pricing!)
-          </Text>
+          <Row style={paymentRow}>
+            <Column>
+              <Text style={paymentLabel}>Total Paid</Text>
+            </Column>
+            <Column align="right">
+              <Text style={totalAmountStyle}>${totalAmount.toFixed(2)}</Text>
+            </Column>
+          </Row>
         </Section>
       </Section>
 
@@ -136,56 +116,56 @@ export const BookingConfirmation = ({
           href={`https://hiddystays.com/bookings/${bookingId}?utm_source=email&utm_medium=booking_confirmation&utm_campaign=guest_experience`}
           style={primaryButton}
         >
-          View Booking Details
+          View Booking
         </Button>
       </Section>
 
-      {/* Getting There */}
-      <Section style={infoSection}>
-        <Text style={infoTitle}>📍 Getting There</Text>
-        <Button href={googleMapsUrl} style={secondaryButton}>
-          Open in Google Maps
-        </Button>
-      </Section>
-
-      {/* Special Instructions */}
-      {specialInstructions && (
-        <Section style={infoSection}>
-          <Text style={infoTitle}>📝 Important Notes</Text>
-          <Text style={infoText}>• Check-in time: {checkInTime}</Text>
-          <Text style={infoText}>• {specialInstructions}</Text>
-        </Section>
-      )}
-
-      {/* Host Contact Card */}
+      {/* Host Info Card */}
       <Section style={hostCardSection}>
         <Section style={hostCard}>
           {hostAvatar && (
             <Img
               src={hostAvatar}
               alt={hostName}
-              width="60"
-              height="60"
+              width="56"
+              height="56"
               style={hostAvatarStyle}
             />
           )}
-          <Text style={hostNameStyle}>Your Host: {hostName}</Text>
+          <Text style={hostNameStyle}>{hostName}</Text>
+          <Text style={hostLabel}>Your Host</Text>
           <Button href={`mailto:${hostEmail}`} style={messageHostButton}>
             Message Host
           </Button>
         </Section>
       </Section>
 
+      {/* Location Details */}
+      <Section style={locationSection}>
+        <Text style={locationTitle}>Location</Text>
+        <Text style={locationAddress}>{propertyAddress}</Text>
+        <Button href={googleMapsUrl} style={mapsButton}>
+          Open in Google Maps
+        </Button>
+      </Section>
+
+      {/* Special Instructions */}
+      {specialInstructions && (
+        <Section style={instructionsSection}>
+          <Text style={instructionsTitle}>Important Notes</Text>
+          <Text style={instructionsText}>{specialInstructions}</Text>
+        </Section>
+      )}
+
       {/* Footer Message */}
       <Section style={footerMessageSection}>
         <Text style={footerMessageText}>
-          Need to make changes? Contact us at{' '}
+          Need help? Contact us anytime at{' '}
           <a href="mailto:admin@hiddystays.com" style={emailLink}>
             admin@hiddystays.com
           </a>
         </Text>
-        <Text style={footerMessageText}>Happy travels!</Text>
-        <Text style={footerMessageText}>The HiddyStays Team</Text>
+        <Text style={footerMessageText}>— The HiddyStays Team</Text>
       </Section>
     </EmailLayout>
   );
@@ -193,200 +173,214 @@ export const BookingConfirmation = ({
 
 export default BookingConfirmation;
 
-// Styles
-const heroSection = {
+// Styles - World-class design system
+const heroTitleSection = {
+  backgroundColor: colors.softBackground,
+  padding: `${spacing.xl} ${layout.containerPadding}`,
+  textAlign: 'center' as const,
+};
+
+const heroTitle = {
+  ...typography.headingXL,
+  color: colors.textStrong,
+  margin: '0',
+};
+
+const imageSection = {
   padding: '0',
 };
 
-const heroImage = {
+const propertyImageStyle = {
   width: '100%',
   height: 'auto',
   display: 'block',
+  borderRadius: '12px',
 };
 
 const greetingSection = {
-  padding: '40px 30px 20px',
+  padding: `${spacing.xl} ${layout.containerPadding} ${spacing.md}`,
 };
 
 const greeting = {
-  fontSize: '28px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 16px 0',
+  ...typography.headingL,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
 };
 
 const mainMessage = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#111827',
-  margin: '0 0 12px 0',
-};
-
-const subMessage = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#6B7280',
+  ...typography.body,
+  color: colors.textMedium,
   margin: '0',
 };
 
 const cardSection = {
-  padding: '0 30px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
-const detailsCard = {
-  backgroundColor: '#F9FAFB',
-  borderRadius: '12px',
-  padding: '30px',
+const bookingCard = {
+  ...cards,
+  backgroundColor: colors.white,
 };
 
 const cardTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 12px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
-const divider = {
-  fontSize: '14px',
-  color: '#E5E7EB',
-  margin: '12px 0',
-  letterSpacing: '2px',
+const softDivider = {
+  borderColor: colors.divider,
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderLeft: 'none',
+  borderRight: 'none',
+  borderBottom: 'none',
+  margin: `${spacing.md} 0`,
 };
 
 const detailRow = {
-  margin: '8px 0',
+  margin: '0',
+};
+
+const detailColumn = {
+  padding: `0 ${spacing.xs}`,
+  verticalAlign: 'top' as const,
 };
 
 const detailLabel = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '0',
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.xs} 0`,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.5px',
 };
 
 const detailValue = {
-  fontSize: '14px',
-  fontWeight: '500',
-  color: '#111827',
+  ...typography.body,
+  fontWeight: '600',
+  color: colors.textStrong,
   margin: '0',
 };
 
-const paymentTitle = {
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '20px 0 12px 0',
+const detailSubtext = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `${spacing.xs} 0 0 0`,
+};
+
+const paymentRow = {
+  margin: '0',
+};
+
+const paymentLabel = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: '0',
 };
 
 const totalAmountStyle = {
-  fontSize: '24px',
-  fontWeight: 'bold',
-  color: '#10B981',
-  margin: '8px 0',
-};
-
-const zeroFeeNote = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '4px 0 0 0',
-  fontStyle: 'italic',
+  ...typography.headingM,
+  color: colors.accentGreen,
+  margin: "0",
 };
 
 const ctaSection = {
-  padding: '40px 30px',
+  padding: `0 ${layout.containerPadding} ${spacing.xl}`,
   textAlign: 'center' as const,
 };
 
 const primaryButton = {
-  backgroundColor: '#10B981',
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: '600',
+  ...buttons.primary,
   textDecoration: 'none',
-  textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '16px 32px',
-  borderRadius: '8px',
-};
-
-const secondaryButton = {
-  backgroundColor: '#1E3A5F',
-  color: '#ffffff',
-  fontSize: '14px',
-  fontWeight: '500',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '12px 24px',
-  borderRadius: '8px',
-};
-
-const infoSection = {
-  padding: '20px 30px',
-};
-
-const infoTitle = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  color: '#111827',
-  margin: '0 0 12px 0',
-};
-
-const infoText = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '4px 0',
 };
 
 const hostCardSection = {
-  padding: '30px',
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
 
 const hostCard = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #E5E7EB',
-  borderRadius: '12px',
-  padding: '20px',
+  ...cards,
   textAlign: 'center' as const,
 };
 
 const hostAvatarStyle = {
   borderRadius: '50%',
-  margin: '0 auto 12px',
+  margin: `0 auto ${spacing.sm}`,
+  display: 'block',
 };
 
 const hostNameStyle = {
-  fontSize: '16px',
-  fontWeight: '600',
-  color: '#111827',
-  margin: '12px 0',
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.xs} 0`,
+};
+
+const hostLabel = {
+  ...typography.micro,
+  color: colors.textLight,
+  margin: `0 0 ${spacing.md} 0`,
 };
 
 const messageHostButton = {
-  backgroundColor: '#1E3A5F',
-  color: '#ffffff',
-  fontSize: '14px',
-  fontWeight: '500',
+  ...buttons.secondary,
   textDecoration: 'none',
-  textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '10px 20px',
-  borderRadius: '6px',
-  marginTop: '12px',
+};
+
+const locationSection = {
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
+};
+
+const locationTitle = {
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
+};
+
+const locationAddress = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `0 0 ${spacing.md} 0`,
+  lineHeight: '1.5',
+};
+
+const mapsButton = {
+  ...buttons.secondary,
+  textDecoration: 'none',
+  display: 'inline-block',
+};
+
+const instructionsSection = {
+  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
+};
+
+const instructionsTitle = {
+  ...typography.headingM,
+  color: colors.textStrong,
+  margin: `0 0 ${spacing.sm} 0`,
+};
+
+const instructionsText = {
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: '0',
+  lineHeight: '1.5',
 };
 
 const footerMessageSection = {
-  padding: '30px',
+  padding: `${spacing.lg} ${layout.containerPadding}`,
   textAlign: 'center' as const,
-  borderTop: '1px solid #E5E7EB',
+  borderTop: `1px solid ${colors.divider}`,
 };
 
 const footerMessageText = {
-  fontSize: '14px',
-  color: '#6B7280',
-  margin: '8px 0',
+  ...typography.bodySmall,
+  color: colors.textMedium,
+  margin: `${spacing.xs} 0`,
 };
 
 const emailLink = {
-  color: '#1E3A5F',
+  color: colors.primaryBlue,
   textDecoration: 'none',
 };

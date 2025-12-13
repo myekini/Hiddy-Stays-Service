@@ -65,7 +65,7 @@ const BookingConfirmationEmail: React.FC<BookingConfirmationEmailProps> = ({
     <div style={emailStyles.body}>
       <div style={emailStyles.container}>
         <div style={emailStyles.header}>
-          <img src="/placeholder.svg" alt="Zero Fee Stays" style={emailStyles.logo} />
+          <img src="https://hiddystays.com/icons/light_email_400px.png" alt="HiddyStays" style={emailStyles.logo} />
           <h1 style={emailStyles.h1}>Booking Confirmation</h1>
         </div>
         <div style={emailStyles.content}>
