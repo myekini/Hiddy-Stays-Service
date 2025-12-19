@@ -1,10 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Temporarily disable ESLint during build to check other errors
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Image optimization
   images: {
     remotePatterns: [

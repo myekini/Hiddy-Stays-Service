@@ -24,7 +24,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -105,7 +105,7 @@
     "leaflet": "^1.9.4",
     "libphonenumber-js": "^1.12.23",
     "lucide-react": "^0.462.0",
-    "next": "^15.5.3",
+    "next": "^16.1.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
