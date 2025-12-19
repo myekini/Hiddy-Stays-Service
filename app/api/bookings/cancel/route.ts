@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { authenticateUser, createAuthResponse } from "@/lib/auth-middleware";
+import { buildAppUrl } from "@/lib/app-url";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -13,6 +15,11 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await authenticateUser(request);
+    if (!user) {
+      return createAuthResponse("Unauthorized");
+    }
+
     const { searchParams } = new URL(request.url);
     const bookingId = searchParams.get("booking_id");
 
@@ -26,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { data: booking, error } = await supabase
       .from("bookings")
       .select(
-        `id, status, total_amount, check_in_date, stripe_payment_intent_id`
+        `id, status, total_amount, check_in_date, guest_id, host_id, stripe_payment_intent_id, payment_intent_id`
       )
       .eq("id", bookingId)
       .single();
@@ -35,6 +42,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Booking not found" },
         { status: 404 }
+      );
+    }
+
+    if (booking.guest_id !== user.profile_id && booking.host_id !== user.profile_id) {
+      return NextResponse.json(
+        { error: "Forbidden", message: "You do not have permission to view this booking" },
+        { status: 403 }
       );
     }
 
@@ -100,6 +114,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   let body: any;
   try {
+    const user = await authenticateUser(request);
+    if (!user) {
+      return createAuthResponse("Unauthorized");
+    }
+
     body = await request.json();
     const { bookingId, reason, refund = false } = body;
 
@@ -118,7 +137,11 @@ export async function POST(request: NextRequest) {
       .select(`
         id,
         status,
+        guest_id,
+        host_id,
+        payment_status,
         stripe_payment_intent_id,
+        payment_intent_id,
         total_amount,
         guest_name,
         guest_email,
@@ -141,6 +164,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (booking.guest_id !== user.profile_id && booking.host_id !== user.profile_id) {
+      return NextResponse.json(
+        { error: "Forbidden", message: "You do not have permission to cancel this booking" },
+        { status: 403 }
+      );
+    }
+
     // Check if booking can be cancelled
     if (booking.status === "cancelled") {
       return NextResponse.json(
@@ -149,9 +179,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (booking.status === "completed") {
+      return NextResponse.json(
+        { error: "Completed bookings cannot be cancelled" },
+        { status: 400 }
+      );
+    }
+
     // Calculate refund eligibility based on cancellation policy
     const checkInDate = new Date(booking.check_in_date);
     const today = new Date();
+    const hoursUntilCheckIn =
+      (checkInDate.getTime() - today.getTime()) / (1000 * 60 * 60);
     const daysUntilCheckIn = Math.ceil(
       (checkInDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
     );
@@ -174,12 +213,30 @@ export async function POST(request: NextRequest) {
       refundAmount = booking.total_amount * 0.5;
     }
 
+    const meetsTiming = hoursUntilCheckIn >= 24;
+    if (!meetsTiming && booking.status === "confirmed") {
+      return NextResponse.json(
+        { error: "Cancellations must be made at least 24 hours before check-in." },
+        { status: 400 }
+      );
+    }
+
     // Process refund if requested and eligible
     let stripeRefundId = null;
-    if (refund && refundEligible && booking.stripe_payment_intent_id) {
+    const paymentIntentId = booking.stripe_payment_intent_id || booking.payment_intent_id;
+    const alreadyRefunded = ["refunded", "partially_refunded"].includes(
+      booking.payment_status
+    );
+    const shouldRefund =
+      Boolean(paymentIntentId) &&
+      refundEligible &&
+      !alreadyRefunded &&
+      (refund === true || booking.payment_status === "paid");
+
+    if (shouldRefund) {
       try {
         const refundResponse = await stripe.refunds.create({
-          payment_intent: booking.stripe_payment_intent_id,
+          payment_intent: paymentIntentId,
           amount: Math.round(refundAmount * 100), // Convert to cents
           reason: "requested_by_customer",
           metadata: {
@@ -202,15 +259,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update booking status
-    const { error: updateError } = await supabase
-      .from("bookings")
-      .update({
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", bookingId);
+    const nowIso = new Date().toISOString();
+    const nextPaymentStatus = stripeRefundId
+      ? refundPercentage === 100
+        ? "refunded"
+        : "partially_refunded"
+      : undefined;
+
+    const updatePayload: Record<string, any> = {
+      status: "cancelled",
+      updated_at: nowIso,
+    };
+
+    if (stripeRefundId) {
+      updatePayload.refund_amount = refundAmount;
+      updatePayload.refund_date = nowIso;
+      updatePayload.refund_reason = reason || "User requested cancellation";
+      updatePayload.payment_status = nextPaymentStatus;
+    }
+
+    // Try including cancelled_at, but fall back if column isn't present
+    let updateError: any = null;
+    {
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          ...updatePayload,
+          cancelled_at: nowIso,
+        })
+        .eq("id", bookingId);
+      updateError = error;
+    }
+
+    if (updateError) {
+      const { error: fallbackError } = await supabase
+        .from("bookings")
+        .update(updatePayload)
+        .eq("id", bookingId);
+      updateError = fallbackError;
+    }
 
     if (updateError) {
       console.error("❌ Error updating booking:", updateError);
@@ -288,19 +375,12 @@ export async function POST(request: NextRequest) {
 
       // Notify host if email available
       if (hostEmail) {
-        await unifiedEmailService.sendHostNotification({
-          bookingId,
-          guestName: booking.guest_name,
-          guestEmail: booking.guest_email,
-          hostName: hostProfile.data?.first_name || "Host",
-          hostEmail,
-          propertyTitle: propertyInfo?.title || "Property",
-          propertyLocation: "",
-          checkInDate: booking.check_in_date,
-          checkOutDate: booking.check_out_date,
-          guests: 1,
-          totalAmount: booking.total_amount,
-          specialRequests: `Booking cancelled. Reason: ${reason || "Not specified"}`,
+        await unifiedEmailService.sendNotification({
+          to: hostEmail,
+          subject: `Booking cancelled - ${propertyInfo?.title || "Property"}`,
+          message: `${booking.guest_name} cancelled their booking for ${propertyInfo?.title || "your property"}.\n\nCheck-in: ${booking.check_in_date}\nCheck-out: ${booking.check_out_date}\n\nReason: ${reason || "Not specified"}`,
+          actionUrl: buildAppUrl(`/bookings/${bookingId}`),
+          actionText: "View booking",
         });
       }
     } catch (emailError) {
@@ -317,6 +397,7 @@ export async function POST(request: NextRequest) {
         percentage: refundPercentage,
         processed: Boolean(stripeRefundId),
         stripe_refund_id: stripeRefundId,
+        processing_time: refundEligible ? "3-5 business days" : null,
       },
     });
   } catch (error) {

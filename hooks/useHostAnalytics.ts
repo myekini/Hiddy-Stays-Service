@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface HostAnalyticsData {
   summary: {
@@ -19,8 +19,6 @@ interface HostAnalyticsData {
       title: string;
       bookings: number;
       revenue: number;
-      views: number;
-      conversionRate: number;
     }>;
     topPerformer: any;
   };
@@ -41,6 +39,11 @@ export const useHostAnalytics = (
   const [data, setData] = useState<HostAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [refreshIndex, setRefreshIndex] = useState(0);
+
+  const refetch = useCallback(() => {
+    setRefreshIndex((i) => i + 1);
+  }, []);
 
   useEffect(() => {
     if (!hostId) return;
@@ -52,7 +55,8 @@ export const useHostAnalytics = (
       try {
         const response = await fetch(`/api/host/analytics?host_id=${hostId}&time_range=${timeRange}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch analytics data');
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.error || 'Failed to fetch analytics data');
         }
         
         const analyticsData = await response.json();
@@ -65,9 +69,9 @@ export const useHostAnalytics = (
     };
 
     fetchAnalytics();
-  }, [hostId, timeRange]);
+  }, [hostId, timeRange, refreshIndex]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, refetch };
 };
 
 export const usePropertyAnalytics = (

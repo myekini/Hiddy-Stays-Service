@@ -83,7 +83,7 @@ zero-fee-stays/
 └── docs/                 # Documentation
 ```
 
-For detailed structure, see [PROJECT_BREAKDOWN.md](./PROJECT_BREAKDOWN.md).
+For detailed structure, see [Documentation Index](./docs/README.md).
 
 ---
 
@@ -105,8 +105,8 @@ For detailed structure, see [PROJECT_BREAKDOWN.md](./PROJECT_BREAKDOWN.md).
 ## 📚 **Documentation**
 
 - **[Documentation Index](./docs/README.md)** - Full documentation index
-- **[Project Breakdown](./docs/project-analysis/PROJECT_BREAKDOWN.md)** - Complete feature breakdown and testing guide
-- **[Project Structure](./docs/project-analysis/PROJECT_STRUCTURE.md)** - Clean project structure
+- **[Project Breakdown](./archive/docs/project-analysis/PROJECT_BREAKDOWN.md)** - Complete feature breakdown and testing guide
+- **[Project Structure](./archive/docs/project-analysis/PROJECT_STRUCTURE.md)** - Clean project structure
 - **[Setup Guide](./docs/setup-guides/01-deployment-guide.md)** - Deployment instructions
 - **[Authentication Guide](./docs/system-guides/02-authentication-system.md)** - Auth system details
 

@@ -1,32 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useRouter, useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import {
   Plus,
   Home,
   Calendar,
   DollarSign,
-  Users,
-  User,
   Star,
-  TrendingUp,
   Eye,
   Edit,
   MoreHorizontal,
   MapPin,
   Bed,
   Bath,
-  Clock,
   MessageSquare,
   Settings,
-  CheckCircle,
   AlertCircle,
   BarChart3,
-  Activity,
   ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +31,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,22 +47,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { PropertyForm } from "@/components/PropertyForm";
 import { CalendarManagement } from "@/components/CalendarManagement";
 import { BookingManagement } from "@/components/BookingManagement";
-import { HostAnalyticsDashboard } from "@/components/HostAnalyticsDashboard";
 import { supabase } from "@/integrations/supabase/client";
+import BackButton from "@/components/ui/BackButton";
+
+const HostAnalyticsDashboard = dynamic(
+  () => import("@/components/HostAnalyticsDashboard").then((m) => m.HostAnalyticsDashboard),
+  { ssr: false }
+);
 
 interface Property {
   id: string;
@@ -90,19 +81,26 @@ interface Property {
 interface Booking {
   id: string;
   property_id: string;
-  property_title: string;
   guest_name: string;
   guest_email: string;
-  check_in: string;
-  check_out: string;
+  check_in?: string;
+  check_out?: string;
+  check_in_date?: string;
+  check_out_date?: string;
   total_amount: number;
   status: "confirmed" | "pending" | "cancelled";
   created_at: string;
+  property?: {
+    title?: string;
+  };
+  property_title?: string;
 }
 
 function HostDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [stats, setStats] = useState({
@@ -112,7 +110,13 @@ function HostDashboard() {
     avg_rating: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(() => {
+    const initial = tabParam || "overview";
+    return initial === "overview" || initial === "properties" || initial === "bookings" || initial === "analytics"
+      ? initial
+      : "overview";
+  });
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(
@@ -121,6 +125,66 @@ function HostDashboard() {
   const [hostProfileId, setHostProfileId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
+
+  const formatDateSafe = (value: string | null | undefined) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const getBookingDates = (booking: Booking) => {
+    return {
+      checkIn: booking.check_in || booking.check_in_date,
+      checkOut: booking.check_out || booking.check_out_date,
+    };
+  };
+
+  const getBookingPropertyTitle = (booking: Booking) => {
+    return booking.property_title || booking.property?.title || "—";
+  };
+
+  const getInitials = (name: string | null | undefined) => {
+    const safe = (name || "").trim();
+    if (!safe) return "?";
+    const parts = safe.split(/\s+/).filter(Boolean);
+    const initials = parts
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join("");
+    return initials || "?";
+  };
+
+  const recentBookingsTop = useMemo(() => recentBookings.slice(0, 3), [recentBookings]);
+
+  useEffect(() => {
+    const next = tabParam || "overview";
+    const normalized =
+      next === "overview" || next === "properties" || next === "bookings" || next === "analytics"
+        ? next
+        : "overview";
+    if (normalized !== activeTab) {
+      setActiveTab(normalized);
+    }
+  }, [tabParam, activeTab]);
+
+  const navigateToTab = (tab: "overview" | "properties" | "bookings" | "analytics") => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", tab);
+    router.push(`/host-dashboard?${nextParams.toString()}`);
+  };
+
+  const getAccessToken = async (): Promise<string | null> => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  };
 
   // Consolidated refresh function for properties and stats
   const refreshDashboardData = async (skipLoading = false) => {
@@ -144,39 +208,37 @@ function HostDashboard() {
 
       if (!hostIdParam) return;
 
-      // Refresh properties with metrics
-      const propertiesResponse = await fetch(`/api/host/properties?host_id=${hostIdParam}`);
-      if (propertiesResponse.ok) {
+      const token = await getAccessToken();
+      const bookingsRequest = token
+        ? fetch(`/api/bookings?host_id=${hostIdParam}&limit=5`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          })
+        : null;
+
+      const [propertiesResponse, statsResponse, bookingsResponse] = await Promise.all([
+        fetch(`/api/host/properties?host_id=${hostIdParam}`),
+        fetch(`/api/host/stats?host_id=${hostIdParam}`),
+        bookingsRequest,
+      ]);
+
+      if (propertiesResponse?.ok) {
         const propertiesData = await propertiesResponse.json();
         setProperties(propertiesData.properties || []);
       }
 
-      // Refresh stats
-      const statsResponse = await fetch(`/api/host/stats?host_id=${hostIdParam}`);
-      if (statsResponse.ok) {
+      if (statsResponse?.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
       }
 
-      // Refresh recent bookings
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        const bookingsResponse = await fetch(
-          `/api/bookings?host_id=${hostIdParam}&limit=5`,
-          {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        if (bookingsResponse.ok) {
-          const bookingsData = await bookingsResponse.json();
-          setRecentBookings(bookingsData.bookings || []);
-        }
+      if (bookingsResponse && bookingsResponse.ok) {
+        const bookingsData = await bookingsResponse.json();
+        setRecentBookings(bookingsData.bookings || []);
       }
-    } catch (error) {
-      console.error("Error refreshing dashboard data:", error);
+    } catch {
       toast({
         title: "Error",
         description: "Failed to refresh dashboard data",
@@ -196,7 +258,7 @@ function HostDashboard() {
         // Resolve host profile ID (profiles.id) from auth user.id once
         let hostIdParam = hostProfileId;
         if (!hostIdParam) {
-          const { data: profile, error: profileError } = await supabase
+          const { data: profile } = await supabase
             .from("profiles")
             .select("id")
             .eq("user_id", user.id)
@@ -205,87 +267,46 @@ function HostDashboard() {
             hostIdParam = profile.id as string;
             setHostProfileId(profile.id as string);
           } else {
-            console.error("No profile found for user:", user.id, profileError);
-
-            // Attempt to auto-create missing profile (same pattern as middleware.ts)
-            const { error: createError } = await supabase.rpc(
-              "create_missing_profile",
-              {
-                user_uuid: user.id,
-              }
-            );
-
-            if (createError) {
-              console.error("Error creating missing profile:", createError);
-              toast({
-                title: "Profile Error",
-                description: "Unable to create your profile. Please sign out and sign in again.",
-                variant: "destructive",
-              });
-              return;
-            }
-
-            const { data: newProfile, error: newProfileError } = await supabase
-              .from("profiles")
-              .select("id")
-              .eq("user_id", user.id)
-              .single();
-
-            if (!newProfile?.id) {
-              console.error("Failed to fetch newly created profile:", newProfileError);
-              toast({
-                title: "Profile Error",
-                description: "Profile was created but could not be loaded. Please refresh the page.",
-                variant: "destructive",
-              });
-              return;
-            }
-
-            hostIdParam = newProfile.id as string;
-            setHostProfileId(newProfile.id as string);
+            toast({
+              title: "Profile Error",
+              description: "Unable to load your profile. Please refresh or sign out and sign in again.",
+              variant: "destructive",
+            });
+            return;
           }
         }
 
-        // Load properties for this host only (using host-specific API)
-        console.log("Loading properties for host ID:", hostIdParam);
-        const propertiesResponse = await fetch(`/api/host/properties?host_id=${hostIdParam}`);
-        if (propertiesResponse.ok) {
-          const propertiesData = await propertiesResponse.json();
-          console.log("Properties response:", propertiesData);
-          // Host API already returns properties with all required metrics
-          setProperties(propertiesData.properties || []);
-        } else {
-          console.error("Failed to load properties:", await propertiesResponse.text());
-        }
-
-        // Load bookings with authentication
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const bookingsResponse = await fetch(
-            `/api/bookings?host_id=${hostIdParam}&limit=5`,
-            {
+        const token = await getAccessToken();
+        const bookingsRequest = token
+          ? fetch(`/api/bookings?host_id=${hostIdParam}&limit=5`, {
               headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
               },
-            }
-          );
-          if (bookingsResponse.ok) {
-            const bookingsData = await bookingsResponse.json();
-            setRecentBookings(bookingsData.bookings || []);
-          } else {
-            console.error("Failed to load bookings:", await bookingsResponse.text());
-          }
+            })
+          : null;
+
+        const [propertiesResponse, statsResponse, bookingsResponse] = await Promise.all([
+          fetch(`/api/host/properties?host_id=${hostIdParam}`),
+          fetch(`/api/host/stats?host_id=${hostIdParam}`),
+          bookingsRequest,
+        ]);
+
+        if (propertiesResponse?.ok) {
+          const propertiesData = await propertiesResponse.json();
+          setProperties(propertiesData.properties || []);
         }
 
-        // Load stats
-        const statsResponse = await fetch(`/api/host/stats?host_id=${hostIdParam}`);
-        if (statsResponse.ok) {
+        if (statsResponse?.ok) {
           const statsData = await statsResponse.json();
           setStats(statsData);
         }
-      } catch (error) {
-        console.error("Error loading dashboard data:", error);
+
+        if (bookingsResponse && bookingsResponse.ok) {
+          const bookingsData = await bookingsResponse.json();
+          setRecentBookings(bookingsData.bookings || []);
+        }
+      } catch {
         toast({
           title: "Error",
           description:
@@ -333,7 +354,6 @@ function HostDashboard() {
         throw new Error(error.error || "Failed to delete property");
       }
     } catch (error) {
-      console.error("Error deleting property:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete property",
@@ -342,16 +362,7 @@ function HostDashboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  const showSkeletons = loading;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
@@ -360,6 +371,9 @@ function HostDashboard() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
+              <BackButton to="/" className="mb-2 -ml-2">
+                Back to Home
+              </BackButton>
               <h1 className="text-3xl font-semibold text-gray-900">
                 Host Dashboard
               </h1>
@@ -367,24 +381,56 @@ function HostDashboard() {
                 Welcome back, {user?.user_metadata?.first_name || "Host"}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setActiveTab("bookings")}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Bookings
-              </Button>
-              <Button
-                onClick={() => {
-                  setSelectedProperty(null);
-                  setShowPropertyForm(true);
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Property
-              </Button>
-            </div>
+          </div>
+        </div>
+
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-sm text-slate-600">
+            {showSkeletons ? (
+              <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+            ) : (
+              <span>{stats.total_properties} properties · {stats.active_bookings} active bookings</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => {
+                setSelectedProperty(null);
+                setShowPropertyForm(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Property
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (properties.length > 0) {
+                  const first = properties[0];
+                  if (first) {
+                    setSelectedProperty(first);
+                    setShowCalendar(true);
+                  }
+                } else {
+                  toast({
+                    title: "No Properties",
+                    description: "Please add a property first to manage calendar",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Calendar
+            </Button>
+            <Button variant="outline" onClick={() => navigateToTab("bookings")}>
+              <ArrowUpRight className="w-4 h-4 mr-2" />
+              Bookings
+            </Button>
+            <Button variant="outline" onClick={() => navigateToTab("analytics")}>
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Analytics
+            </Button>
           </div>
         </div>
 
@@ -398,9 +444,13 @@ function HostDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Properties</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {stats.total_properties}
-                  </p>
+                  {showSkeletons ? (
+                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {stats.total_properties}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -414,9 +464,13 @@ function HostDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Bookings</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {stats.active_bookings}
-                  </p>
+                  {showSkeletons ? (
+                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {stats.active_bookings}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -430,9 +484,13 @@ function HostDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Revenue</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    ${stats.monthly_revenue.toLocaleString()}
-                  </p>
+                  {showSkeletons ? (
+                    <div className="mt-2 h-7 w-24 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-semibold text-gray-900">
+                      ${stats.monthly_revenue.toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -446,9 +504,13 @@ function HostDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Rating</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {stats.avg_rating}
-                  </p>
+                  {showSkeletons ? (
+                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {stats.avg_rating}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -456,7 +518,7 @@ function HostDashboard() {
         </div>
 
         {/* Monte-styled Main Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
+        <Tabs value={activeTab} onValueChange={(v) => navigateToTab(v as "overview" | "properties" | "bookings" | "analytics")} className="space-y-12">
           <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200">
             <TabsList className="grid w-full grid-cols-4 bg-transparent h-12 p-1">
               <TabsTrigger 
@@ -501,7 +563,7 @@ function HostDashboard() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setActiveTab("properties")}
+                    onClick={() => navigateToTab("properties")}
                     className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
                   >
                     <Eye className="w-4 h-4 mr-2" />
@@ -510,7 +572,13 @@ function HostDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {properties.length === 0 ? (
+                {showSkeletons ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="h-40 rounded-2xl bg-slate-200/60 animate-pulse" />
+                    ))}
+                  </div>
+                ) : properties.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Home className="w-8 h-8 text-slate-400" />
@@ -532,13 +600,8 @@ function HostDashboard() {
                   </div>
                 ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {properties.map((property, index) => (
-                    <motion.div
-                      key={property.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                    >
+                  {properties.map((property) => (
+                    <div key={property.id}>
                       <Card className="overflow-hidden border-0 shadow-sm hover:shadow-lg transition-all duration-300 group bg-white">
                         <div className="flex">
                           {/* Property Image */}
@@ -674,7 +737,7 @@ function HostDashboard() {
                           </div>
                         </div>
                       </Card>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
                 )}
@@ -694,7 +757,7 @@ function HostDashboard() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => setActiveTab("bookings")}
+                    onClick={() => navigateToTab("bookings")}
                     className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
                   >
                     <Eye className="w-4 h-4 mr-2" />
@@ -703,7 +766,13 @@ function HostDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {recentBookings.length === 0 ? (
+                {showSkeletons ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-28 rounded-2xl bg-slate-200/60 animate-pulse" />
+                    ))}
+                  </div>
+                ) : recentBookings.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Calendar className="w-8 h-8 text-slate-400" />
@@ -715,118 +784,88 @@ function HostDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {recentBookings.map((booking, index) => (
-                      <motion.div
-                        key={booking.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4, delay: index * 0.1 }}
-                      >
-                        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 group bg-slate-50/50 hover:bg-white">
-                          <CardContent className="p-6">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center">
-                                    <User className="w-5 h-5 text-slate-600" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center justify-between">
-                                      <h3 className="font-semibold text-slate-900 group-hover:text-slate-800">
+                    {recentBookingsTop.map((booking) => (
+                      <div key={booking.id}>
+                        <Card className="border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 bg-white">
+                          <CardContent className="p-4 sm:p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-slate-700">
+                                  {getInitials(booking.guest_name)}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-slate-900 truncate">
                                         {booking.guest_name}
-                                      </h3>
-                                      <Badge
-                                        variant="secondary"
-                                        className={`text-xs font-medium px-3 py-1 ${
-                                          booking.status === "confirmed"
-                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                            : booking.status === "pending"
-                                              ? "bg-amber-100 text-amber-700 border-amber-200"
-                                              : "bg-red-100 text-red-700 border-red-200"
-                                        }`}
-                                      >
-                                        {booking.status === "confirmed" && (
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                        )}
-                                        {booking.status === "pending" && (
-                                          <Clock className="w-3 h-3 mr-1" />
-                                        )}
-                                        {booking.status === "cancelled" && (
-                                          <AlertCircle className="w-3 h-3 mr-1" />
-                                        )}
-                                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                                      </Badge>
+                                      </p>
+                                      <p className="text-sm text-slate-500 truncate">
+                                        {getBookingPropertyTitle(booking)}
+                                      </p>
                                     </div>
-                                    <p className="text-sm text-slate-500 mt-1">
-                                      {booking.guest_email}
-                                    </p>
-                                  </div>
-                                </div>
 
-                                <div className="bg-white rounded-lg p-4 border border-slate-100 mb-4">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Home className="w-4 h-4 text-slate-400" />
-                                    <span className="font-medium text-slate-900 text-sm">
-                                      {booking.property_title}
-                                    </span>
+                                    <Badge
+                                      variant="secondary"
+                                      className={`text-xs font-medium px-2.5 py-1 ${
+                                        booking.status === "confirmed"
+                                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                          : booking.status === "pending"
+                                            ? "bg-amber-100 text-amber-700 border-amber-200"
+                                            : "bg-red-100 text-red-700 border-red-200"
+                                      }`}
+                                    >
+                                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                                    </Badge>
                                   </div>
-                                  
-                                  <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div className="flex items-center gap-2 text-slate-600">
-                                      <Calendar className="w-4 h-4" />
-                                      <div>
-                                        <p className="font-medium">Check-in</p>
-                                        <p>{new Date(booking.check_in).toLocaleDateString('en-US', { 
-                                          month: 'short', 
-                                          day: 'numeric',
-                                          year: 'numeric'
-                                        })}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-slate-600">
-                                      <Calendar className="w-4 h-4" />
-                                      <div>
-                                        <p className="font-medium">Check-out</p>
-                                        <p>{new Date(booking.check_out).toLocaleDateString('en-US', { 
-                                          month: 'short', 
-                                          day: 'numeric',
-                                          year: 'numeric'
-                                        })}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
 
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4 text-slate-400" />
-                                    <span className="font-semibold text-slate-900 text-lg">
-                                      ${booking.total_amount.toLocaleString()}
-                                    </span>
-                                    <span className="text-sm text-slate-500">total</span>
-                                  </div>
-                                  <div className="text-xs text-slate-400">
-                                    {new Date(booking.created_at).toLocaleDateString('en-US', { 
-                                      month: 'short', 
-                                      day: 'numeric'
-                                    })}
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className="w-4 h-4 text-slate-400" />
+                                      <span className="whitespace-nowrap">
+                                        {formatDateSafe(getBookingDates(booking).checkIn)}
+                                      </span>
+                                      <span className="text-slate-400">→</span>
+                                      <span className="whitespace-nowrap">
+                                        {formatDateSafe(getBookingDates(booking).checkOut)}
+                                      </span>
+                                    </div>
+                                    <span className="hidden sm:inline text-slate-300">•</span>
+                                    <div className="flex items-center gap-2">
+                                      <DollarSign className="w-4 h-4 text-slate-400" />
+                                      <span className="font-semibold text-slate-900">
+                                        ${booking.total_amount.toLocaleString()}
+                                      </span>
+                                      <span className="text-slate-500">total</span>
+                                    </div>
+                                    <span className="hidden sm:inline text-slate-300">•</span>
+                                    <div className="text-xs text-slate-400">
+                                      {formatDateSafe(booking.created_at)}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 ml-6">
-                                <Button 
-                                  variant="ghost" 
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                  variant="ghost"
                                   size="sm"
-                                  className="text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                  className="hidden sm:inline-flex text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                                 >
                                   <MessageSquare className="w-4 h-4 mr-2" />
                                   Contact
                                 </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="sm:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                </Button>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button 
-                                      variant="ghost" 
+                                    <Button
+                                      variant="ghost"
                                       size="sm"
                                       className="text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                                     >
@@ -834,25 +873,23 @@ function HostDashboard() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                  <DropdownMenuItem asChild>
-                                    <a href={`/property/${booking.property_id}`} target="_blank" rel="noopener noreferrer">
-                                      <Eye className="w-4 h-4 mr-2" />
-                                      View Property
-                                    </a>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => setActiveTab("bookings")}
-                                  >
-                                    <Settings className="w-4 h-4 mr-2" />
-                                    Manage Bookings
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
+                                    <DropdownMenuItem asChild>
+                                      <a href={`/property/${booking.property_id}`} target="_blank" rel="noopener noreferrer">
+                                        <Eye className="w-4 h-4 mr-2" />
+                                        View Property
+                                      </a>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => navigateToTab("bookings")}>
+                                      <Settings className="w-4 h-4 mr-2" />
+                                      Manage Bookings
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
                             </div>
                           </CardContent>
                         </Card>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -885,13 +922,8 @@ function HostDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {properties.map((property, index) => (
-                    <motion.div
-                      key={property.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                    >
+                  {properties.map((property) => (
+                    <div key={property.id}>
                       <Card className="overflow-hidden">
                         <div className="relative">
                           <img
@@ -965,7 +997,7 @@ function HostDashboard() {
                           </div>
                         </CardContent>
                       </Card>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -980,10 +1012,11 @@ function HostDashboard() {
                 onBookingUpdate={() => refreshDashboardData(true)}
               />
             ) : (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-muted-foreground">Loading bookings...</p>
+              <div className="min-h-[400px]">
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-24 rounded-2xl bg-slate-200/60 animate-pulse" />
+                  ))}
                 </div>
               </div>
             )}
@@ -991,91 +1024,15 @@ function HostDashboard() {
 
           {/* Analytics Tab */}
           <TabsContent value="analytics">
-            {hostProfileId && <HostAnalyticsDashboard hostId={hostProfileId} />}
+            {activeTab === "analytics" ? (
+              hostProfileId ? (
+                <HostAnalyticsDashboard hostId={hostProfileId} />
+              ) : (
+                <div className="h-40 rounded-2xl bg-slate-200/60 animate-pulse" />
+              )
+            ) : null}
           </TabsContent>
         </Tabs>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => {
-                  setSelectedProperty(null);
-                  setShowPropertyForm(true);
-                }}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Plus className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">
-                        Add Property
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        List new property
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => {
-                  if (properties.length > 0) {
-setSelectedProperty(properties[0]!);
-                    setShowCalendar(true);
-                  } else {
-                    toast({
-                      title: "No Properties",
-                      description:
-                        "Please add a property first to manage calendar",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Calendar className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">
-                        Manage Calendar
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Update availability
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <TrendingUp className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Analytics</p>
-                      <p className="text-sm text-muted-foreground">View insights</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Property Form Modal */}
@@ -1086,7 +1043,7 @@ setSelectedProperty(properties[0]!);
           setShowPropertyForm(false);
           setSelectedProperty(null);
         }}
-        onSuccess={(property) => {
+        onSuccess={() => {
           // Refresh dashboard data
           refreshDashboardData(true);
         }}
@@ -1130,7 +1087,9 @@ setSelectedProperty(properties[0]!);
 
 const HostDashboardWithErrorBoundary = () => (
   <ErrorBoundary>
-    <HostDashboard />
+    <ProtectedRoute requiredRole="host" fallbackPath="/auth?mode=signin&next=/host-dashboard">
+      <HostDashboard />
+    </ProtectedRoute>
   </ErrorBoundary>
 );
 

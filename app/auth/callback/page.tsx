@@ -8,18 +8,36 @@ import { Loader2 } from "lucide-react";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const { testSupabaseConnection } = useAuth();
+  useAuth();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
         console.log("Handling auth callback...");
 
+        const getSafeNext = () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const nextFromQuery = urlParams.get("next");
+          const nextFromStorage =
+            typeof window !== "undefined" ? localStorage.getItem("auth_next") : null;
+          const candidate = nextFromQuery || nextFromStorage;
+          if (!candidate) return null;
+          if (!candidate.startsWith("/") || candidate.startsWith("//")) return null;
+          if (candidate.startsWith("/auth")) return null;
+          return candidate;
+        };
+
+        const safeNext = getSafeNext();
+        if (safeNext) {
+          localStorage.removeItem("auth_next");
+        }
+
         // Check for error in URL (OAuth or email verification error)
         const urlParams = new URLSearchParams(window.location.search);
         const error = urlParams.get("error");
         const errorDescription = urlParams.get("error_description");
         const errorCode = urlParams.get("error_code");
+        const code = urlParams.get("code");
 
         if (error) {
           console.error(
@@ -95,11 +113,73 @@ export default function AuthCallbackPage() {
           }
 
           if (data.session) {
-            console.log("Session set successfully, redirecting to home...");
-            // Wait for auth state to propagate
-            setTimeout(() => {
-              router.push("/");
-            }, 1000);
+            // For email verification flows, do NOT keep the user signed in.
+            if (type === "signup") {
+              const firstName =
+                (data.session.user?.user_metadata as any)?.first_name ||
+                (data.session.user?.user_metadata as any)?.firstName;
+              const email = data.session.user?.email;
+              if (firstName && email) {
+                fetch("/api/email/send", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "welcome",
+                    data: { name: firstName, email, userId: data.session.user.id },
+                  }),
+                }).catch(() => undefined);
+              }
+              await supabase.auth.signOut();
+              router.replace("/auth?verified=true&mode=signin");
+              return;
+            }
+
+            console.log("Session set successfully, redirecting...");
+            router.replace(safeNext || "/");
+            return;
+          }
+        }
+
+        // OAuth PKCE flow: exchange the code for a session
+        if (code) {
+          console.log("Exchanging OAuth code for session...");
+          const { data, error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            console.error("Error exchanging code for session:", exchangeError);
+            router.push(
+              `/auth?error=${encodeURIComponent(
+                "Authentication failed. Please try signing in again."
+              )}`
+            );
+            return;
+          }
+
+          if (data.session) {
+            // For email verification flows, do NOT keep the user signed in.
+            if (type === "signup") {
+              const firstName =
+                (data.session.user?.user_metadata as any)?.first_name ||
+                (data.session.user?.user_metadata as any)?.firstName;
+              const email = data.session.user?.email;
+              if (firstName && email) {
+                fetch("/api/email/send", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "welcome",
+                    data: { name: firstName, email, userId: data.session.user.id },
+                  }),
+                }).catch(() => undefined);
+              }
+              await supabase.auth.signOut();
+              router.replace("/auth?verified=true&mode=signin");
+              return;
+            }
+
+            console.log("OAuth session established, redirecting...");
+            router.replace(safeNext || "/");
             return;
           }
         }
@@ -112,26 +192,46 @@ export default function AuthCallbackPage() {
 
           let errorMessage = "Authentication failed. Please try signing in again.";
 
-          if (sessionError.message?.includes("refresh_token_not_found")) {
+          const message = (sessionError.message || "").toLowerCase();
+          const isRefreshTokenError =
+            message.includes("refresh_token_not_found") ||
+            message.includes("refresh token not found") ||
+            message.includes("invalid refresh token");
+
+          if (isRefreshTokenError) {
             errorMessage = "Your session has expired. Please sign in again.";
-          } else if (sessionError.message?.includes("invalid_grant")) {
+            await supabase.auth.signOut().catch(() => undefined);
+            if (typeof window !== "undefined") {
+              try {
+                for (const key of Object.keys(window.localStorage)) {
+                  if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+                    window.localStorage.removeItem(key);
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            }
+            router.replace(`/auth?mode=signin&error=${encodeURIComponent(errorMessage)}`);
+            return;
+          }
+
+          if (message.includes("invalid_grant")) {
             errorMessage = "Authentication link is invalid or expired. Please request a new one.";
           }
 
-          router.push(`/auth?error=${encodeURIComponent(errorMessage)}`);
+          router.replace(`/auth?mode=signin&error=${encodeURIComponent(errorMessage)}`);
           return;
         }
 
         if (data.session) {
           console.log("Existing session found, redirecting to home...");
-          setTimeout(() => {
-            router.push("/");
-          }, 500);
+          router.replace(safeNext || "/");
         } else {
           console.log("No session found after callback");
           // If email was just verified but no session, show success message
           if (type === "signup") {
-            router.push("/auth?verified=true");
+            router.replace("/auth?verified=true&mode=signin");
           } else {
             router.push("/auth");
           }
@@ -157,22 +257,30 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="bg-white rounded-lg p-8 shadow-sm border max-w-md mx-4">
-          <div className="flex items-center justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10 p-8">
+        <div className="space-y-6">
+          <div className="flex items-center justify-center">
+            <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">
-            Completing sign in...
-          </h2>
-          <p className="text-gray-600 mb-4">
-            Please wait while we complete your authentication.
-          </p>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-blue-500 h-2 rounded-full animate-pulse"></div>
+
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Completing sign in</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Securing your session and preparing your account.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="h-2 w-full rounded-full bg-slate-200/70 dark:bg-slate-800 overflow-hidden">
+              <div className="h-full w-1/3 bg-slate-900/70 dark:bg-white/70 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+              <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+            </div>
           </div>
         </div>
       </div>

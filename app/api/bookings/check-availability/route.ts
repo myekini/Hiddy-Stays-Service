@@ -2,10 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 // Use service role to bypass RLS and see all bookings
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("Missing Supabase environment variables");
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+function errorResponse(
+  status: number,
+  error: string,
+  message?: string,
+  details?: Record<string, unknown>
+) {
+  const payload: Record<string, unknown> = {
+    success: false,
+    error,
+  };
+
+  if (message) payload.message = message;
+  if (!IS_PRODUCTION && details && Object.keys(details).length > 0) {
+    payload.details = details;
+  }
+
+  return NextResponse.json(payload, { status });
+}
 
 /**
  * POST /api/bookings/check-availability
@@ -14,15 +38,33 @@ const supabase = createClient(
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { propertyId, checkIn, checkOut } = body;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse(400, "Invalid request body", "Malformed JSON");
+    }
+
+    if (!body || typeof body !== "object") {
+      return errorResponse(400, "Invalid request body");
+    }
+
+    const parsed = body as Record<string, unknown>;
+    const propertyId = parsed.propertyId;
+    const checkIn = parsed.checkIn;
+    const checkOut = parsed.checkOut;
 
     // Validate required fields
     if (!propertyId || !checkIn || !checkOut) {
-      return NextResponse.json(
-        { error: "propertyId, checkIn, and checkOut are required" },
-        { status: 400 }
-      );
+      return errorResponse(400, "Missing required fields", "propertyId, checkIn, and checkOut are required");
+    }
+
+    if (typeof propertyId !== "string") {
+      return errorResponse(400, "Invalid propertyId");
+    }
+
+    if (typeof checkIn !== "string" || typeof checkOut !== "string") {
+      return errorResponse(400, "Invalid date range");
     }
 
     // Check if property exists
@@ -33,10 +75,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (propertyError || !property) {
-      return NextResponse.json(
-        { error: "Property not found" },
-        { status: 404 }
-      );
+      return errorResponse(404, "Property not found");
+    }
+
+    // Check blocked date ranges first
+    const { data: blockedDates, error: blockedDatesError } = await supabase
+      .from("blocked_dates")
+      .select("id, start_date, end_date")
+      .eq("property_id", propertyId)
+      .lt("start_date", checkOut)
+      .gte("end_date", checkIn);
+
+    if (blockedDatesError) {
+      return errorResponse(500, "Failed to check availability", undefined, {
+        code: blockedDatesError.code,
+        message: blockedDatesError.message,
+      });
     }
 
     // Get all active bookings for this property
@@ -47,11 +101,10 @@ export async function POST(request: NextRequest) {
       .in("status", ["pending", "confirmed"]);
 
     if (bookingsError) {
-      console.error("Error fetching bookings:", bookingsError);
-      return NextResponse.json(
-        { error: "Failed to check availability" },
-        { status: 500 }
-      );
+      return errorResponse(500, "Failed to check availability", undefined, {
+        code: bookingsError.code,
+        message: bookingsError.message,
+      });
     }
 
     // Check for date overlaps
@@ -67,23 +120,23 @@ export async function POST(request: NextRequest) {
       return checkInDate < existingCheckOut && existingCheckIn < checkOutDate;
     });
 
-    const isAvailable = conflicts.length === 0;
+    const isAvailable = conflicts.length === 0 && (!blockedDates || blockedDates.length === 0);
 
     return NextResponse.json({
       available: isAvailable,
       propertyId,
       checkIn,
       checkOut,
+      blockedDates: (blockedDates || []).map((b) => ({
+        start_date: b.start_date,
+        end_date: b.end_date,
+      })),
       conflicts: conflicts.map((c) => ({
         checkIn: c.check_in_date,
         checkOut: c.check_out_date,
       })),
     });
-  } catch (error) {
-    console.error("Error checking availability:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch {
+    return errorResponse(500, "Internal server error");
   }
 }

@@ -14,6 +14,16 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: NextRequest) {
   try {
+    const allowDevTools =
+      process.env.NODE_ENV !== "production" ||
+      process.env.ALLOW_DEV_ADMIN_TOOLS === "true";
+    if (!allowDevTools) {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404 }
+      );
+    }
+
     const { email } = await request.json();
 
     if (!email) {

@@ -50,6 +50,48 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          role: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          role?: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          role?: string
+          token?: string
+        }
+        Relationships: []
+      }
       analytics_cache: {
         Row: {
           created_at: string
@@ -922,6 +964,7 @@ export type Database = {
           first_name: string | null
           id: string
           is_host: boolean | null
+          is_suspended: boolean | null
           is_verified: boolean | null
           last_login_at: string | null
           last_name: string | null
@@ -940,6 +983,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           is_host?: boolean | null
+          is_suspended?: boolean | null
           is_verified?: boolean | null
           last_login_at?: string | null
           last_name?: string | null
@@ -958,6 +1002,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           is_host?: boolean | null
+          is_suspended?: boolean | null
           is_verified?: boolean | null
           last_login_at?: string | null
           last_name?: string | null

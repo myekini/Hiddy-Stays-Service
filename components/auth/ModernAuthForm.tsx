@@ -57,9 +57,14 @@ export function ModernAuthForm({ mode = "signin" }: ModernAuthFormProps) {
     }
 
     if (error) {
+      const decodedError = decodeURIComponent(error);
+      const friendlyError =
+        decodedError === "account_suspended"
+          ? "Your account has been suspended. Please contact support."
+          : decodedError;
       toast({
         title: "Authentication Error",
-        description: decodeURIComponent(error),
+        description: friendlyError,
         variant: "destructive",
         duration: 8000,
       });
@@ -130,6 +135,19 @@ export function ModernAuthForm({ mode = "signin" }: ModernAuthFormProps) {
           description: "You've been signed in successfully.",
         });
         setTimeout(() => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const inviteToken = urlParams.get("token");
+          if (inviteToken && window.location.pathname.startsWith("/auth/accept-invite")) {
+            router.push(`/auth/accept-invite?token=${encodeURIComponent(inviteToken)}`);
+            return;
+          }
+
+          const next = urlParams.get("next");
+          if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth")) {
+            router.push(next);
+            return;
+          }
+
           router.push("/");
         }, 500);
       }

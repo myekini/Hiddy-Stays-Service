@@ -1,4 +1,5 @@
 import { unifiedEmailService } from "./unified-email-service";
+import { buildAppUrl } from "./app-url";
 
 /**
  * Utility functions for common email operations
@@ -160,7 +161,7 @@ export const formatEmailCurrency = (
 ): string => {
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
-    currency: currency,
+    currency,
   }).format(amount);
 };
 
@@ -175,8 +176,9 @@ export const generateUnsubscribeUrl = (
   email: string,
   type: string = "newsletter"
 ): string => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hiddystays.com";
-  return `${baseUrl}/unsubscribe?email=${encodeURIComponent(email)}&type=${type}`;
+  return buildAppUrl(
+    `/unsubscribe?email=${encodeURIComponent(email)}&type=${encodeURIComponent(type)}`
+  );
 };
 
 // Generate email tracking pixel URL
@@ -184,6 +186,7 @@ export const generateTrackingPixelUrl = (
   emailId: string,
   recipientEmail: string
 ): string => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hiddystays.com";
-  return `${baseUrl}/api/email/track?emailId=${emailId}&email=${encodeURIComponent(recipientEmail)}`;
+  return buildAppUrl(
+    `/api/email/track?emailId=${encodeURIComponent(emailId)}&email=${encodeURIComponent(recipientEmail)}`
+  );
 };

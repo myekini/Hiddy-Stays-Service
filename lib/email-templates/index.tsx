@@ -16,6 +16,7 @@ import {
   Column,
 } from "@react-email/components";
 import * as React from "react";
+import { buildAppUrl, getAppBaseUrl } from "../app-url";
 
 interface EmailTemplateProps {
   name?: string;
@@ -68,7 +69,7 @@ export const BaseTemplate = ({
 
 // Welcome Email Template
 export const WelcomeEmail = ({ name, email }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   return (
     <BaseTemplate
       title="Welcome to HiddyStays!"
@@ -106,7 +107,7 @@ export const BookingConfirmationEmail = ({
   totalAmount,
   bookingId,
 }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   return (
     <BaseTemplate
       title="Booking Confirmed!"
@@ -172,7 +173,7 @@ export const HostNotificationEmail = ({
   totalAmount,
   bookingId,
 }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   return (
     <BaseTemplate
       title="New Booking Received!"
@@ -338,7 +339,7 @@ export const CheckInReminderEmail = ({
   propertyAddress,
   bookingId,
 }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   return (
     <BaseTemplate
       title="Check-in Reminder"
@@ -413,7 +414,7 @@ export const BookingCancellationEmail = ({
   cancellationReason,
   bookingId,
 }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -563,7 +564,7 @@ export const PaymentReceiptEmail = ({
   bookingId,
   receiptUrl,
 }: EmailTemplateProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
   return (
     <BaseTemplate
       title="Payment Receipt"
@@ -625,7 +626,7 @@ export const NewsletterWelcomeEmail = ({ name, email }: EmailTemplateProps) => (
     <Section style={{ textAlign: 'center', margin: '20px 0' }}>
       <Button
         style={{ backgroundColor: brand, color: '#FFFFFF', padding: '10px 16px', borderRadius: 10, fontWeight: 600, textDecoration: 'none' }}
-        href="/properties"
+        href={buildAppUrl("/properties")}
       >
         Explore properties
       </Button>

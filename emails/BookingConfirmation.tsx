@@ -9,11 +9,12 @@ import {
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
 import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
+import { buildAppUrl } from '../lib/app-url';
 
 interface BookingConfirmationProps {
   guestName: string;
   propertyName: string;
-  propertyImage: string;
+  propertyImage?: string;
   propertyAddress: string;
   checkInDate: string;
   checkInTime: string;
@@ -23,10 +24,9 @@ interface BookingConfirmationProps {
   totalAmount: number;
   bookingId: string;
   hostName: string;
-  hostAvatar?: string;
-  hostEmail: string;
+  hostEmail?: string;
   specialInstructions?: string;
-  googleMapsUrl: string;
+  googleMapsUrl?: string;
 }
 
 export const BookingConfirmation = ({
@@ -42,7 +42,6 @@ export const BookingConfirmation = ({
   totalAmount,
   bookingId,
   hostName,
-  hostAvatar,
   hostEmail,
   specialInstructions,
   googleMapsUrl,
@@ -55,15 +54,17 @@ export const BookingConfirmation = ({
       </Section>
 
       {/* Property Image */}
-      <Section style={imageSection}>
-        <Img
-          src={propertyImage}
-          alt={propertyName}
-          width="640"
-          height="320"
-          style={propertyImageStyle}
-        />
-      </Section>
+      {propertyImage ? (
+        <Section style={imageSection}>
+          <Img
+            src={propertyImage}
+            alt={propertyName}
+            width="640"
+            height="320"
+            style={propertyImageStyle}
+          />
+        </Section>
+      ) : null}
 
       {/* Greeting */}
       <Section style={greetingSection}>
@@ -113,40 +114,34 @@ export const BookingConfirmation = ({
       {/* CTA Button */}
       <Section style={ctaSection}>
         <Button
-          href={`https://hiddystays.com/bookings/${bookingId}?utm_source=email&utm_medium=booking_confirmation&utm_campaign=guest_experience`}
+          href={buildAppUrl(
+            `/bookings/${bookingId}?utm_source=email&utm_medium=booking_confirmation&utm_campaign=guest_experience`
+          )}
           style={primaryButton}
         >
           View Booking
         </Button>
       </Section>
 
-      {/* Host Info Card */}
-      <Section style={hostCardSection}>
-        <Section style={hostCard}>
-          {hostAvatar && (
-            <Img
-              src={hostAvatar}
-              alt={hostName}
-              width="56"
-              height="56"
-              style={hostAvatarStyle}
-            />
-          )}
-          <Text style={hostNameStyle}>{hostName}</Text>
-          <Text style={hostLabel}>Your Host</Text>
-          <Button href={`mailto:${hostEmail}`} style={messageHostButton}>
-            Message Host
-          </Button>
-        </Section>
-      </Section>
-
-      {/* Location Details */}
+      {/* Host + Address (simple, reliable links) */}
       <Section style={locationSection}>
-        <Text style={locationTitle}>Location</Text>
+        <Text style={locationTitle}>Host</Text>
+        <Text style={locationAddress}>{hostName}</Text>
+        {hostEmail ? (
+          <Text style={locationAddress}>
+            Email: <a href={`mailto:${hostEmail}`} style={emailLink}>{hostEmail}</a>
+          </Text>
+        ) : null}
+
+        <Hr style={softDivider} />
+
+        <Text style={locationTitle}>Address</Text>
         <Text style={locationAddress}>{propertyAddress}</Text>
-        <Button href={googleMapsUrl} style={mapsButton}>
-          Open in Google Maps
-        </Button>
+        {googleMapsUrl ? (
+          <Text style={locationAddress}>
+            Map: <a href={googleMapsUrl} style={emailLink}>Open Google Maps</a>
+          </Text>
+        ) : null}
       </Section>
 
       {/* Special Instructions */}
@@ -295,39 +290,6 @@ const primaryButton = {
   display: 'inline-block',
 };
 
-const hostCardSection = {
-  padding: `0 ${layout.containerPadding} ${spacing.lg}`,
-};
-
-const hostCard = {
-  ...cards,
-  textAlign: 'center' as const,
-};
-
-const hostAvatarStyle = {
-  borderRadius: '50%',
-  margin: `0 auto ${spacing.sm}`,
-  display: 'block',
-};
-
-const hostNameStyle = {
-  ...typography.headingM,
-  color: colors.textStrong,
-  margin: `0 0 ${spacing.xs} 0`,
-};
-
-const hostLabel = {
-  ...typography.micro,
-  color: colors.textLight,
-  margin: `0 0 ${spacing.md} 0`,
-};
-
-const messageHostButton = {
-  ...buttons.secondary,
-  textDecoration: 'none',
-  display: 'inline-block',
-};
-
 const locationSection = {
   padding: `0 ${layout.containerPadding} ${spacing.lg}`,
 };
@@ -343,12 +305,6 @@ const locationAddress = {
   color: colors.textMedium,
   margin: `0 0 ${spacing.md} 0`,
   lineHeight: '1.5',
-};
-
-const mapsButton = {
-  ...buttons.secondary,
-  textDecoration: 'none',
-  display: 'inline-block',
 };
 
 const instructionsSection = {

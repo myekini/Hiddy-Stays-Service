@@ -36,6 +36,22 @@ const ProtectedRoute = ({
         }
         return;
       }
+
+      // Optimistic allow: if metadata role already satisfies requiredRole,
+      // render immediately and verify in the background.
+      const roleHierarchy: Record<string, number> = {
+        user: 1,
+        host: 2,
+        admin: 3,
+        super_admin: 4,
+      };
+      const optimisticOk =
+        (roleHierarchy[authUser.role] || 1) >= (roleHierarchy[requiredRole] || 1);
+      if (optimisticOk && !cancelled) {
+        setAllowed(true);
+        setChecking(false);
+      }
+
       const ok = await hasPermission(requiredRole);
       if (!cancelled) {
         if (ok) {

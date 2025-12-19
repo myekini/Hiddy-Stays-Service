@@ -1,24 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { parsePhoneNumber, isValidPhoneNumber } from "libphonenumber-js";
+import { isValidPhoneNumber } from "libphonenumber-js";
+import { buildAppUrl } from "@/lib/app-url";
+import { signBookingAccessToken } from "@/lib/booking-access-token";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("Missing Supabase environment variables");
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+function errorResponse(
+  status: number,
+  error: string,
+  message?: string,
+  details?: Record<string, unknown>
+) {
+  const payload: Record<string, unknown> = {
+    success: false,
+    error,
+  };
+
+  if (message) payload.message = message;
+  if (!IS_PRODUCTION && details && Object.keys(details).length > 0) {
+    payload.details = details;
+  }
+
+  return NextResponse.json(payload, { status });
+}
+
+interface BookingGuestInfo {
+  userId?: string;
+  name: string;
+  email: string;
+  phone: string;
+  specialRequests?: string;
+}
+
+interface BookingCreateRequestBody {
+  propertyId: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  guestInfo: BookingGuestInfo;
+  totalAmount: number;
+}
+
+type BookingCreateRequestBodyInput = Partial<BookingCreateRequestBody>;
+
+interface BookingValidationResult {
+  isValid: boolean;
+  errors: string[];
+  value?: BookingCreateRequestBody;
+}
 
 // Validation helper functions
-function validateBookingRequest(body: any) {
+function validateBookingRequest(body: BookingCreateRequestBodyInput): BookingValidationResult {
   const errors: string[] = [];
 
-  if (!body.propertyId) {
+  const propertyId = body.propertyId;
+  const checkIn = body.checkIn;
+  const checkOut = body.checkOut;
+  const guests = body.guests;
+  const guestInfo = body.guestInfo;
+  const totalAmount = body.totalAmount;
+
+  if (!propertyId) {
     errors.push("Property ID is required");
   }
 
-  if (!body.checkIn) {
+  if (!checkIn) {
     errors.push("Check-in date is required");
   } else {
-    const checkInDate = new Date(body.checkIn);
+    const checkInDate = new Date(checkIn);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -27,11 +85,11 @@ function validateBookingRequest(body: any) {
     }
   }
 
-  if (!body.checkOut) {
+  if (!checkOut) {
     errors.push("Check-out date is required");
-  } else if (body.checkIn) {
-    const checkInDate = new Date(body.checkIn);
-    const checkOutDate = new Date(body.checkOut);
+  } else if (checkIn) {
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
 
     if (checkOutDate <= checkInDate) {
       errors.push("Check-out date must be after check-in date");
@@ -45,77 +103,101 @@ function validateBookingRequest(body: any) {
     }
   }
 
-  if (!body.guests || body.guests < 1) {
+  if (!guests || guests < 1) {
     errors.push("At least 1 guest is required");
   }
 
-  if (body.guests && body.guests > 16) {
+  if (guests && guests > 16) {
     errors.push("Maximum 16 guests allowed");
   }
 
-  if (!body.guestInfo) {
+  if (!guestInfo) {
     errors.push("Guest information is required");
   } else {
-    if (!body.guestInfo.name || body.guestInfo.name.trim().length < 2) {
+    if (!guestInfo.name || guestInfo.name.trim().length < 2) {
       errors.push("Guest name must be at least 2 characters");
     }
 
     if (
-      !body.guestInfo.email ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.guestInfo.email)
+      !guestInfo.email ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email)
     ) {
       errors.push("Valid email address is required");
     }
 
     // Enhanced phone validation
-    if (!body.guestInfo.phone || body.guestInfo.phone.trim().length === 0) {
+    if (!guestInfo.phone || guestInfo.phone.trim().length === 0) {
       errors.push("Phone number is required");
     } else {
       try {
         // Try parsing with default country (Canada/US)
-        if (!isValidPhoneNumber(body.guestInfo.phone, "CA")) {
+        if (!isValidPhoneNumber(guestInfo.phone, "CA")) {
           // Try without country code
-          if (!isValidPhoneNumber(body.guestInfo.phone)) {
+          if (!isValidPhoneNumber(guestInfo.phone)) {
             errors.push(
               "Invalid phone number format. Please include country code (e.g., +1 for North America)"
             );
           }
         }
-      } catch (phoneError) {
+      } catch {
         errors.push("Invalid phone number format");
       }
     }
   }
 
-  if (!body.totalAmount || body.totalAmount <= 0) {
+  if (!totalAmount || totalAmount <= 0) {
     errors.push("Total amount must be greater than 0");
+  }
+
+  if (
+    errors.length === 0 &&
+    propertyId &&
+    checkIn &&
+    checkOut &&
+    guests &&
+    guestInfo &&
+    totalAmount
+  ) {
+    return {
+      isValid: true,
+      errors: [],
+      value: {
+        propertyId,
+        checkIn,
+        checkOut,
+        guests,
+        guestInfo,
+        totalAmount,
+      },
+    };
   }
 
   return {
     isValid: errors.length === 0,
     errors,
+    value: undefined,
   };
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: BookingCreateRequestBodyInput;
+    try {
+      body = (await request.json()) as BookingCreateRequestBodyInput;
+    } catch {
+      return errorResponse(400, "Invalid request format", "Malformed JSON");
+    }
 
     // Validate request
     const validation = validateBookingRequest(body);
-    if (!validation.isValid) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          details: validation.errors,
-          message: "Please check your booking details and try again",
-        },
-        { status: 400 }
-      );
+    if (!validation.isValid || !validation.value) {
+      return errorResponse(400, "Validation failed", "Please check your booking details and try again", {
+        validationErrors: validation.errors,
+      });
     }
 
     const { propertyId, checkIn, checkOut, guests, guestInfo, totalAmount } =
-      body;
+      validation.value;
 
     // Check if property exists and is active
     const { data: property, error: propertyError } = await supabase
@@ -125,32 +207,52 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (propertyError || !property) {
-      return NextResponse.json(
-        {
-          error: "Property not found",
-          message: "The property you're trying to book no longer exists",
-        },
-        { status: 404 }
-      );
+      return errorResponse(404, "Property not found", "The property you're trying to book no longer exists", {
+        code: propertyError?.code,
+        message: propertyError?.message,
+      });
     }
 
     if (!property.is_active) {
-      return NextResponse.json(
-        {
-          error: "Property unavailable",
-          message: "This property is currently not available for booking",
-        },
-        { status: 400 }
-      );
+      return errorResponse(400, "Property unavailable", "This property is currently not available for booking");
     }
 
     if (guests > property.max_guests) {
-      return NextResponse.json(
+      return errorResponse(
+        400,
+        "Too many guests",
+        `This property can only accommodate up to ${property.max_guests} guests`
+      );
+    }
+
+    // Check if dates are blocked by host
+    // Blocked dates are inclusive [start_date, end_date]
+    // Booking occupancy is [check_in, check_out) so we consider overlap if:
+    // blocked_start < check_out AND blocked_end >= check_in
+    const { data: blockedDates, error: blockedDatesError } = await supabase
+      .from("blocked_dates")
+      .select("id, start_date, end_date")
+      .eq("property_id", propertyId)
+      .lt("start_date", checkOut)
+      .gte("end_date", checkIn);
+
+    if (blockedDatesError) {
+      return errorResponse(
+        500,
+        "Availability check failed",
+        "Unable to verify property availability. Please try again.",
         {
-          error: "Too many guests",
-          message: `This property can only accommodate up to ${property.max_guests} guests`,
-        },
-        { status: 400 }
+          code: blockedDatesError.code,
+          message: blockedDatesError.message,
+        }
+      );
+    }
+
+    if (blockedDates && blockedDates.length > 0) {
+      return errorResponse(
+        409,
+        "Property not available",
+        "The selected dates are blocked by the host. Please choose different dates."
       );
     }
 
@@ -166,13 +268,14 @@ export async function POST(request: NextRequest) {
       .in("status", ["pending", "confirmed"]); // Only check active bookings, exclude cancelled/completed
 
     if (availabilityError) {
-      console.error("Availability check error:", availabilityError);
-      return NextResponse.json(
+      return errorResponse(
+        500,
+        "Availability check failed",
+        "Unable to verify property availability. Please try again.",
         {
-          error: "Availability check failed",
-          message: "Unable to verify property availability. Please try again.",
-        },
-        { status: 500 }
+          code: availabilityError.code,
+          message: availabilityError.message,
+        }
       );
     }
 
@@ -201,6 +304,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json(
         {
+          success: false,
           error: "Property not available",
           message: `The property is already booked from ${from} to ${to}`,
           conflictingDates: {
@@ -223,9 +327,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (profileError || !profile) {
-        console.warn(
-          `Profile not found for user_id: ${guestInfo.userId}. Creating guest booking.`
-        );
         // Continue with guest booking (profileId remains null)
       } else {
         profileId = profile.id;
@@ -249,7 +350,7 @@ export async function POST(request: NextRequest) {
         special_requests: guestInfo.specialRequests || null,
         status: "pending",
         payment_status: "pending",
-        currency: "USD",
+        currency: "CAD",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -257,17 +358,25 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (bookingError) {
-      console.error("Booking creation error:", bookingError);
+      // Prevent double-booking at DB level (race-condition safe)
+      if (bookingError.code === "23P01") {
+        return errorResponse(
+          409,
+          "Property not available",
+          "The selected dates are no longer available. Please choose different dates.",
+          {
+            code: bookingError.code,
+            message: bookingError.message,
+          }
+        );
+      }
 
       // Handle specific database errors
       if (bookingError.code === "23505") {
-        return NextResponse.json(
-          {
-            error: "Duplicate booking",
-            message: "A booking with these details already exists",
-          },
-          { status: 409 }
-        );
+        return errorResponse(409, "Duplicate booking", "A booking with these details already exists", {
+          code: bookingError.code,
+          message: bookingError.message,
+        });
       }
 
       if (bookingError.code === "23503") {
@@ -280,23 +389,16 @@ export async function POST(request: NextRequest) {
           ? "Property not found"
           : "Invalid reference. Please check your booking details.";
 
-        return NextResponse.json(
-          {
-            error: "Invalid reference",
-            message: errorMessage,
-            details: bookingError.details,
-          },
-          { status: 400 }
-        );
+        return errorResponse(400, "Invalid reference", errorMessage, {
+          code: bookingError.code,
+          details: bookingError.details,
+        });
       }
 
-      return NextResponse.json(
-        {
-          error: "Booking creation failed",
-          message: "Unable to create booking. Please try again.",
-        },
-        { status: 500 }
-      );
+      return errorResponse(500, "Booking creation failed", "Unable to create booking. Please try again.", {
+        code: bookingError.code,
+        message: bookingError.message,
+      });
     }
 
     // Get property and host information for notification and emails
@@ -343,8 +445,7 @@ export async function POST(request: NextRequest) {
           is_read: false,
           created_at: new Date().toISOString(),
         });
-      } catch (notificationError) {
-        console.error("Failed to create notification:", notificationError);
+      } catch {
         // Don't fail the booking creation if notification fails
       }
     }
@@ -355,7 +456,6 @@ export async function POST(request: NextRequest) {
         const { unifiedEmailService } = await import(
           "@/lib/unified-email-service"
         );
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
         await unifiedEmailService.sendBookingRequest({
           bookingId: booking.id,
           guestName: guestInfo.name,
@@ -366,7 +466,7 @@ export async function POST(request: NextRequest) {
           hostEmail: hostEmail || "",
           propertyTitle: propertyDetails?.title || "Property",
           propertyLocation: propertyDetails?.address || "",
-          paymentUrl: `${baseUrl}/bookings`,
+          paymentUrl: buildAppUrl(`/bookings/${booking.id}`),
           checkInDate: new Date(checkIn).toLocaleDateString("en-US", {
             weekday: "long",
             year: "numeric",
@@ -379,58 +479,23 @@ export async function POST(request: NextRequest) {
             month: "long",
             day: "numeric",
           }),
-          guests: guests,
-          totalAmount: totalAmount,
+          guests,
+          totalAmount,
         });
-        console.log("✅ Guest confirmation email sent");
-      } catch (emailError) {
-        console.error("Failed to send guest email:", emailError);
+      } catch {
         // Don't fail the booking if email fails
       }
     }
 
-    // Send email notification to host (new booking alert)
-    if (hostEmail) {
-      try {
-        const { unifiedEmailService } = await import(
-          "@/lib/unified-email-service"
-        );
-        await unifiedEmailService.sendHostNotification({
-          bookingId: booking.id,
-          guestName: guestInfo.name,
-          guestEmail: guestInfo.email,
-          hostName:
-            `${hostProfile?.first_name || ""} ${hostProfile?.last_name || ""}`.trim() ||
-            "Host",
-          hostEmail: hostEmail,
-          propertyTitle: propertyDetails?.title || "Property",
-          propertyLocation: propertyDetails?.address || "",
-          checkInDate: new Date(checkIn).toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }),
-          checkOutDate: new Date(checkOut).toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }),
-          guests: guests,
-          totalAmount: totalAmount,
-          specialRequests: guestInfo.specialRequests || "",
-        });
-        console.log("✅ Host notification email sent");
-      } catch (emailError) {
-        console.error("Failed to send host email:", emailError);
-        // Don't fail the booking if email fails
-      }
-    }
+    // Host notification email is sent after payment confirmation (verify-payment/webhook)
 
     return NextResponse.json({
       success: true,
       bookingId: booking.id,
+      accessToken: signBookingAccessToken({
+        bookingId: booking.id,
+        exp: Math.floor(Date.now() / 1000) + 60 * 60,
+      }),
       status: "pending",
       message:
         "Booking created successfully! The host will review your request.",
@@ -445,26 +510,11 @@ export async function POST(request: NextRequest) {
         createdAt: booking.created_at,
       },
     });
-  } catch (error) {
-    console.error("Unexpected error creating booking:", error);
-
-    // Handle JSON parsing errors
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        {
-          error: "Invalid request format",
-          message: "Please check your request data and try again",
-        },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: "An unexpected error occurred. Please try again later.",
-      },
-      { status: 500 }
+  } catch {
+    return errorResponse(
+      500,
+      "Internal server error",
+      "An unexpected error occurred. Please try again later."
     );
   }
 }

@@ -19,7 +19,6 @@ import {
   CircleCheckBig,
   Hourglass,
   CreditCard,
-  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -167,18 +166,6 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
 
       let userBookings = data.bookings || [];
 
-      // Debug: Check first booking for images
-      if (userBookings.length > 0) {
-        console.log("First booking images check:", {
-          bookingId: userBookings[0].id,
-          propertyId: userBookings[0].property_id,
-          property: userBookings[0].property,
-          images: userBookings[0].property?.images,
-          imageCount: userBookings[0].property?.images?.length || 0,
-          firstImage: userBookings[0].property?.images?.[0],
-        });
-      }
-
       // Apply search filter
       if (filters.search) {
         userBookings = userBookings.filter(
@@ -236,8 +223,19 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
 
     setLoadingCancellation(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const response = await fetch(
-        `/api/bookings/cancel?booking_id=${booking.id}&user_id=${user.id}`
+        `/api/bookings/cancel?booking_id=${booking.id}`,
+        {
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        }
       );
 
       if (response.ok) {
@@ -256,12 +254,20 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
 
     setLoadingCancellation(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const response = await fetch("/api/bookings/cancel", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           bookingId: selectedBooking.id,
-          userId: user.id,
           reason: "Cancelled by guest",
         }),
       });
@@ -315,10 +321,10 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
     });
   };
 
-  const formatCurrency = (amount: number, currency: string = "USD") => {
-    return new Intl.NumberFormat("en-US", {
+  const formatCurrency = (amount: number, currency: string = "CAD") => {
+    return new Intl.NumberFormat("en-CA", {
       style: "currency",
-      currency: currency || "USD",
+      currency: currency || "CAD",
     }).format(amount);
   };
 
@@ -563,7 +569,6 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                             alt={booking.property?.title || "Property"}
                             className="w-full lg:w-64 h-56 object-cover rounded-xl border border-slate-200 group-hover:scale-105 transition-transform duration-500"
                             onError={e => {
-                              console.error("Image failed to load:", booking.property?.images?.[0]);
                               (e.target as HTMLImageElement).src =
                                 "/placeholder.svg";
                             }}
@@ -647,7 +652,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-row lg:flex-col gap-2 lg:w-48 flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:w-48 flex-shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
@@ -655,7 +660,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                           setSelectedBooking(booking);
                           setShowDetails(true);
                         }}
-                        className="flex-1 lg:w-full justify-center border-slate-200 hover:bg-slate-50 hover:border-slate-900 rounded-xl h-10 font-medium text-slate-900"
+                        className="w-full sm:flex-1 lg:w-full justify-center border-slate-200 hover:bg-slate-50 hover:border-slate-900 rounded-xl h-10 font-medium text-slate-900"
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
@@ -666,7 +671,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           asChild
                           size="sm"
-                          className="flex-1 lg:w-full justify-center bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-10 font-medium shadow-sm"
+                          className="w-full sm:flex-1 lg:w-full justify-center bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-10 font-medium shadow-sm"
                         >
                           <Link href={`/booking/${booking.id}/pay`}>
                             <CreditCard className="w-4 h-4 mr-2" />
@@ -679,7 +684,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 lg:w-full justify-center text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 rounded-xl h-10 font-medium"
+                          className="w-full sm:flex-1 lg:w-full justify-center text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 rounded-xl h-10 font-medium"
                           onClick={() => {
                             setSelectedBooking(booking);
                             loadCancellationPolicy(booking);
@@ -695,7 +700,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 lg:w-full justify-center text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200 hover:border-amber-300 rounded-xl h-10 font-medium"
+                          className="w-full sm:flex-1 lg:w-full justify-center text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200 hover:border-amber-300 rounded-xl h-10 font-medium"
                           onClick={() => {
                             setSelectedBooking(booking);
                             setShowReviewForm(true);
@@ -709,7 +714,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 lg:w-full justify-center text-slate-500 hover:text-slate-900 rounded-xl h-10"
+                        className="w-full sm:flex-1 lg:w-full justify-center text-slate-500 hover:text-slate-900 rounded-xl h-10"
                       >
                         Contact Host
                       </Button>

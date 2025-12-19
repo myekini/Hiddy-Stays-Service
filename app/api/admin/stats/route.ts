@@ -28,7 +28,7 @@ async function verifyAdmin(request: NextRequest) {
     .eq("user_id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "super_admin") {
     return { isAdmin: false, error: "Admin access required" };
   }
 
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       .from("profiles")
       .select("role")
       .then((res) => {
-        const counts = { user: 0, host: 0, admin: 0 };
+        const counts = { user: 0, host: 0, admin: 0, super_admin: 0 };
         res.data?.forEach((p: any) => {
           if (p.role in counts) counts[p.role as keyof typeof counts]++;
         });

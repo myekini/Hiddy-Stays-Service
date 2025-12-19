@@ -278,6 +278,7 @@ async function handleCheckoutSessionCompleted(
         status: "confirmed",
         payment_status: "paid",
         payment_intent_id: session.payment_intent as string,
+        stripe_payment_intent_id: session.payment_intent as string,
         stripe_session_id: session.id,
         payment_method: session.payment_method_types?.[0] || "card",
         updated_at: new Date().toISOString(),
@@ -380,12 +381,32 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
       return;
     }
 
-    // Update booking
+    const { data: existingBooking, error: existingBookingError } = await supabase
+      .from("bookings")
+      .select("id, status, payment_status")
+      .eq("id", bookingId)
+      .single();
+
+    if (existingBookingError || !existingBooking) {
+      console.error("Booking not found for payment intent:", bookingId);
+      return;
+    }
+
+    if (["cancelled", "completed"].includes(existingBooking.status)) {
+      console.log(
+        `ℹ️ Booking ${bookingId} is ${existingBooking.status}; skipping status update on payment success`
+      );
+      return;
+    }
+
+    // Update booking (covers the case where checkout.session.completed is missed or delayed)
     const { error } = await supabase
       .from("bookings")
       .update({
+        status: "confirmed",
         payment_status: "paid",
         payment_intent_id: paymentIntent.id,
+        stripe_payment_intent_id: paymentIntent.id,
         updated_at: new Date().toISOString(),
       })
       .eq("id", bookingId);
@@ -415,12 +436,47 @@ async function handlePaymentFailed(
       return;
     }
 
-    // Update booking status to failed
+    const paymentIntentId =
+      (sessionOrIntent as any).object === "payment_intent"
+        ? (sessionOrIntent as Stripe.PaymentIntent).id
+        : ((sessionOrIntent as Stripe.Checkout.Session)
+            .payment_intent as string | null) || null;
+
+    const { data: existingBooking, error: existingBookingError } = await supabase
+      .from("bookings")
+      .select("id, status, payment_status")
+      .eq("id", bookingId)
+      .single();
+
+    if (existingBookingError || !existingBooking) {
+      console.error("Booking not found for payment failure:", bookingId);
+      return;
+    }
+
+    if (existingBooking.payment_status === "paid") {
+      console.log(`ℹ️ Booking ${bookingId} already paid; skipping failure update`);
+      return;
+    }
+
+    if (["cancelled", "completed"].includes(existingBooking.status)) {
+      console.log(
+        `ℹ️ Booking ${bookingId} is ${existingBooking.status}; skipping failure update`
+      );
+      return;
+    }
+
+    // Mark payment as failed but keep booking pending so it can be retried
     const { error } = await supabase
       .from("bookings")
       .update({
-        status: "cancelled",
+        status: "pending",
         payment_status: "failed",
+        ...(paymentIntentId
+          ? {
+              payment_intent_id: paymentIntentId,
+              stripe_payment_intent_id: paymentIntentId,
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", bookingId);
@@ -477,12 +533,19 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       return;
     }
 
+    const refundedAmount = charge.amount_refunded || 0;
+    const fullAmount = charge.amount || 0;
+    const nextPaymentStatus =
+      refundedAmount > 0 && refundedAmount < fullAmount
+        ? "partially_refunded"
+        : "refunded";
+
     // Update booking
     const { error } = await supabase
       .from("bookings")
       .update({
-        payment_status: "refunded",
-        refund_amount: charge.amount_refunded / 100, // Convert from cents
+        payment_status: nextPaymentStatus,
+        refund_amount: refundedAmount / 100, // Convert from cents
         refund_date: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

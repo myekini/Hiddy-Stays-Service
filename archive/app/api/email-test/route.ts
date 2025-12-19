@@ -3,6 +3,13 @@ import { emailService } from '@/lib/email/unified-email-service';
 
 export async function POST(req: NextRequest) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Not found" },
+        { status: 404 }
+      );
+    }
+
     const body = await req.json();
     const { type, data } = body;
 

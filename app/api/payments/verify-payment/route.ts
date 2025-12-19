@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
         currency,
         guest_name,
         guest_email,
+        special_requests,
         property_id,
         host_id
       `)
@@ -188,50 +189,107 @@ export async function POST(request: NextRequest) {
     }
 
     if (paymentCompleted) {
-      // Only update if not already paid (prevent duplicate processing)
-      if (booking.payment_status !== "paid") {
-        const { error: updateError } = await supabase
+      // =====================================================================
+      // IMPORTANT: Persist payment success to DB.
+      // Webhooks can be delayed/misconfigured; this endpoint is the
+      // post-checkout authority when the client returns from Stripe.
+      // Keep it idempotent by only updating when the booking isn't paid.
+      // =====================================================================
+      try {
+        const stripePaymentIntentId =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : paymentIntent?.id;
+
+        const stripeDerivedPaymentMethod =
+          paymentIntent?.payment_method_types?.[0] ||
+          session.payment_method_types?.[0] ||
+          "card";
+
+        const { error: persistError } = await supabase
           .from("bookings")
           .update({
             status: "confirmed",
             payment_status: "paid",
-            payment_intent_id: (typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : paymentIntent?.id) as string,
+            payment_method: stripeDerivedPaymentMethod,
+            payment_intent_id: stripePaymentIntentId || null,
+            stripe_payment_intent_id: stripePaymentIntentId || null,
             stripe_session_id: session.id,
-            payment_method: session.payment_method_types?.[0] || "card",
             updated_at: new Date().toISOString(),
           })
-          .eq("id", bookingId);
+          .eq("id", bookingId)
+          .neq("payment_status", "paid");
 
-        if (updateError) {
-          console.error("Error updating booking status:", updateError);
+        const didTransitionToPaid = !persistError;
+
+        if (persistError) {
+          console.error(
+            "❌ verify-payment: failed to persist paid booking status:",
+            persistError
+          );
         } else {
-          console.log(`✅ Booking ${bookingId} marked as paid`);
-
-          // Update payment transaction
-          await supabase
-            .from("payment_transactions")
-            .update({
-              status:
-                paymentIntentStatus === "succeeded" || session.payment_status === "paid"
-                  ? "succeeded"
-                  : "pending",
-              stripe_payment_intent_id:
-                (typeof session.payment_intent === "string"
-                  ? session.payment_intent
-                  : paymentIntent?.id) || null,
-              completed_at:
-                paymentIntentStatus === "succeeded" || session.payment_status === "paid"
-                  ? new Date().toISOString()
-                  : null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("booking_id", bookingId)
-            .eq("stripe_session_id", session.id);
+          console.log("✅ verify-payment: booking marked paid/confirmed:", bookingId);
         }
-      } else {
-        console.log(`Booking ${bookingId} already marked as paid (idempotency)`);
+
+        if (didTransitionToPaid) {
+          try {
+            const { unifiedEmailService } = await import("@/lib/unified-email-service");
+
+            const { data: propertyRow } = await supabase
+              .from("properties")
+              .select(
+                "id,title,address,city,host_id,property_images!property_images_property_id_fkey(public_url,is_primary,display_order)"
+              )
+              .eq("id", booking.property_id)
+              .single();
+
+            const propertyImage =
+              propertyRow?.property_images
+                ?.slice()
+                ?.sort((a: any, b: any) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) || (a.display_order || 0) - (b.display_order || 0))
+                ?.[0]?.public_url ||
+              undefined;
+
+            const { data: hostProfile } = await supabase
+              .from("profiles")
+              .select("first_name,last_name,user_id")
+              .eq("id", booking.host_id)
+              .single();
+
+            let hostEmail = "";
+            if (hostProfile?.user_id) {
+              const { data: authUser } = await supabase.auth.admin.getUserById(
+                hostProfile.user_id
+              );
+              hostEmail = authUser?.user?.email || "";
+            }
+
+            const hostName =
+              `${hostProfile?.first_name || ""} ${hostProfile?.last_name || ""}`.trim() ||
+              "Host";
+
+            await unifiedEmailService.sendBookingEmails({
+              bookingId,
+              guestName: booking.guest_name,
+              guestEmail: booking.guest_email,
+              hostName,
+              hostEmail,
+              propertyTitle: propertyRow?.title || "Property",
+              propertyLocation: `${propertyRow?.address || ""} ${propertyRow?.city || ""}`.trim(),
+              propertyImage,
+              propertyAddress: `${propertyRow?.address || ""} ${propertyRow?.city || ""}`.trim(),
+              checkInDate: booking.check_in_date,
+              checkOutDate: booking.check_out_date,
+              guests: booking.guests_count,
+              totalAmount: booking.total_amount,
+              hostInstructions: booking.special_requests || undefined,
+            });
+          } catch (emailErr) {
+            console.error("❌ verify-payment: failed sending confirmation emails:", emailErr);
+          }
+        }
+      } catch (persistErr) {
+        console.error("❌ verify-payment: exception persisting paid booking:", persistErr);
       }
 
       // Fetch detailed booking info for response
@@ -253,151 +311,89 @@ export async function POST(request: NextRequest) {
           host_id,
           payment_status,
           payment_method,
-          properties!inner (
+          properties!bookings_property_id_fkey (
             id,
             title,
             address,
             city,
             state,
-            images,
-            host_id
+            host_id,
+            property_images!property_images_property_id_fkey(
+              public_url,
+              is_primary,
+              display_order
+            )
           )
         `)
         .eq("id", bookingId)
         .single();
 
-      if (!fetchError && bookingDetails) {
-        const propertyInfo = Array.isArray(bookingDetails.properties)
-          ? bookingDetails.properties[0]
-          : bookingDetails.properties;
+      // Prefer Stripe-derived status when this endpoint detects completion.
+      // The DB may still show "pending" until the webhook processes.
+      const paymentStatus =
+        session.payment_status === "paid" || paymentIntentStatus === "succeeded"
+          ? "paid"
+          : booking.payment_status || paymentIntentStatus || session.payment_status;
 
-        const propertyImage = propertyInfo?.images?.[0] || null;
-        const currency = (bookingDetails.currency || session.currency || "USD").toUpperCase();
-
-        // Get charge details from latest_charge (Stripe API v2023+)
-        const latestCharge =
-          paymentIntent?.latest_charge && typeof paymentIntent.latest_charge !== "string"
+      // Get charge details from latest_charge (Stripe API v2023+)
+      const latestCharge =
+        paymentIntent?.latest_charge && typeof paymentIntent.latest_charge !== "string"
           ? (paymentIntent.latest_charge as Stripe.Charge)
           : null;
-        const paymentMethodDetails = latestCharge?.payment_method_details;
-        const cardDetails = paymentMethodDetails?.card;
+      const paymentMethodDetails = latestCharge?.payment_method_details;
+      const cardDetails = paymentMethodDetails?.card;
 
-        const paymentStatus =
-          bookingDetails.payment_status || booking.payment_status || session.payment_status;
+      const stripeDerivedPaymentMethod =
+        paymentMethodDetails?.type || session.payment_method_types?.[0] || "card";
 
-        const paymentMethod =
-          bookingDetails.payment_method ||
-          booking.payment_method ||
-          paymentMethodDetails?.type ||
-          session.payment_method_types?.[0] ||
-          "card";
+      // If the expanded booking query fails (e.g., schema mismatch), still return a
+      // success response so the client doesn't show a false "processing" error.
+      if (fetchError || !bookingDetails) {
+        console.warn(
+          "⚠️ verify-payment: booking details lookup failed after Stripe payment completed; returning fallback success response",
+          fetchError
+        );
 
-        // Fetch host details
-        const { data: hostProfile } = await supabase
-          .from("profiles")
-          .select("first_name, last_name, user_id")
-          .eq("id", bookingDetails.host_id)
+        const { data: property } = await supabase
+          .from("properties")
+          .select("id, title, address, city, state")
+          .eq("id", booking.property_id)
           .single();
 
-        const hostFullName = hostProfile
-          ? `${hostProfile.first_name || ""} ${hostProfile.last_name || ""}`.trim()
-          : "Host";
+        const { data: propertyImages } = await supabase
+          .from("property_images")
+          .select("public_url, is_primary, display_order")
+          .eq("property_id", booking.property_id)
+          .order("is_primary", { ascending: false })
+          .order("display_order", { ascending: true })
+          .limit(1);
 
-        // Get host email from auth.users
-        let hostEmail = "";
-        if (hostProfile?.user_id) {
-          const { data: authUser } = await supabase.auth.admin.getUserById(hostProfile.user_id);
-          hostEmail = authUser?.user?.email || "";
-        }
+        const currency = (booking.currency || session.currency || "CAD").toUpperCase();
 
-        // Send confirmation email notifications asynchronously
-        try {
-          // Only send notifications if this is the first time marking as paid
-          if (booking.payment_status !== "paid") {
-            // Send email to guest
-            const { unifiedEmailService } = await import("@/lib/unified-email-service");
-            await unifiedEmailService.sendBookingConfirmation({
-              bookingId: bookingDetails.id,
-              guestName: bookingDetails.guest_name,
-              guestEmail: bookingDetails.guest_email,
-              hostName: hostFullName,
-              hostEmail,
-              propertyTitle: propertyInfo?.title || "Property",
-              propertyLocation: propertyInfo?.address || "",
-              checkInDate: bookingDetails.check_in_date,
-              checkOutDate: bookingDetails.check_out_date,
-              guests: bookingDetails.guests_count,
-              totalAmount: bookingDetails.total_amount,
-            });
-
-            // Send email to host
-            if (hostEmail) {
-              await unifiedEmailService.sendHostNotification({
-                bookingId: bookingDetails.id,
-                guestName: bookingDetails.guest_name,
-                guestEmail: bookingDetails.guest_email,
-                hostName: hostFullName,
-                hostEmail,
-                propertyTitle: propertyInfo?.title || "Property",
-                propertyLocation: propertyInfo?.address || "",
-                checkInDate: bookingDetails.check_in_date,
-                checkOutDate: bookingDetails.check_out_date,
-                guests: bookingDetails.guests_count,
-                totalAmount: bookingDetails.total_amount,
-                specialRequests: bookingDetails.special_requests || "",
-              });
-            }
-
-            // Create notification
-            await supabase.from("notifications").insert({
-              user_id: bookingDetails.host_id,
-              type: "booking_confirmed",
-              title: "Booking Confirmed! 💳",
-              message: `Payment received for ${propertyInfo?.title}`,
-              data: {
-                booking_id: bookingDetails.id,
-                property_id: bookingDetails.property_id,
-                property_title: propertyInfo?.title,
-                guest_name: bookingDetails.guest_name,
-                check_in_date: bookingDetails.check_in_date,
-                check_out_date: bookingDetails.check_out_date,
-                total_amount: bookingDetails.total_amount,
-              },
-              is_read: false,
-              created_at: new Date().toISOString(),
-            });
-
-            console.log("✅ Email notifications sent successfully");
-          }
-        } catch (emailError) {
-          console.error("❌ Failed to send email notifications:", emailError);
-          // Don't fail the payment verification if email fails
-        }
-
-        const successResponse = {
+        return NextResponse.json({
           success: true,
           sessionId: session.id,
           paymentStatus,
           booking: {
-            id: bookingDetails.id,
-            reference: bookingDetails.id,
-            status: bookingDetails.status,
-            checkInDate: bookingDetails.check_in_date,
-            checkOutDate: bookingDetails.check_out_date,
-            guestsCount: bookingDetails.guests_count,
-            totalAmount: bookingDetails.total_amount,
+            id: booking.id,
+            reference: booking.id,
+            status: booking.status,
+            checkInDate: booking.check_in_date,
+            checkOutDate: booking.check_out_date,
+            guestsCount: booking.guests_count,
+            totalAmount: booking.total_amount,
             currency,
             property: {
-              id: propertyInfo?.id,
-              title: propertyInfo?.title || "Property",
-              address: propertyInfo?.address || "",
-              city: propertyInfo?.city || "",
-              state: propertyInfo?.state || "",
-              image: propertyImage,
+              id: property?.id,
+              title: property?.title || "Property",
+              address: property?.address || "",
+              city: property?.city || "",
+              state: property?.state || "",
+              image: propertyImages?.[0]?.public_url || null,
             },
             payment: {
               status: paymentStatus,
-              method: paymentMethod,
+              method: booking.payment_method || stripeDerivedPaymentMethod,
               brand: cardDetails?.brand,
               last4: cardDetails?.last4,
               receiptUrl: latestCharge?.receipt_url,
@@ -407,49 +403,105 @@ export async function POST(request: NextRequest) {
                   : paymentIntent?.id,
             },
             guest: {
-              name: bookingDetails.guest_name,
-              email: bookingDetails.guest_email,
+              name: booking.guest_name,
+              email: booking.guest_email,
             },
-            host: hostFullName || hostEmail
+          },
+        });
+      }
+
+      const propertyInfo = Array.isArray(bookingDetails.properties)
+        ? bookingDetails.properties[0]
+        : bookingDetails.properties;
+
+      const propertyImages =
+        (propertyInfo?.property_images || [])
+          .map((img: any) => img?.public_url)
+          .filter(Boolean) || [];
+
+      const propertyImage = propertyImages[0] || null;
+      const currency = (bookingDetails.currency || session.currency || "CAD").toUpperCase();
+
+      const paymentMethod =
+        bookingDetails.payment_method ||
+        booking.payment_method ||
+        stripeDerivedPaymentMethod ||
+        "card";
+
+      // Fetch host details
+      const { data: hostProfile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, user_id")
+        .eq("id", bookingDetails.host_id)
+        .single();
+
+      const hostFullName = hostProfile
+        ? `${hostProfile.first_name || ""} ${hostProfile.last_name || ""}`.trim()
+        : "Host";
+
+      // Get host email from auth.users
+      let hostEmail = "";
+      if (hostProfile?.user_id) {
+        const { data: authUser } = await supabase.auth.admin.getUserById(
+          hostProfile.user_id
+        );
+        hostEmail = authUser?.user?.email || "";
+      }
+
+      const successResponse = {
+        success: true,
+        sessionId: session.id,
+        paymentStatus,
+        booking: {
+          id: bookingDetails.id,
+          reference: bookingDetails.id,
+          status: bookingDetails.status,
+          checkInDate: bookingDetails.check_in_date,
+          checkOutDate: bookingDetails.check_out_date,
+          guestsCount: bookingDetails.guests_count,
+          totalAmount: bookingDetails.total_amount,
+          currency,
+          property: {
+            id: propertyInfo?.id,
+            title: propertyInfo?.title || "Property",
+            address: propertyInfo?.address || "",
+            city: propertyInfo?.city || "",
+            state: propertyInfo?.state || "",
+            image: propertyImage,
+          },
+          payment: {
+            status: paymentStatus,
+            method: paymentMethod,
+            brand: cardDetails?.brand,
+            last4: cardDetails?.last4,
+            receiptUrl: latestCharge?.receipt_url,
+            paymentIntentId:
+              typeof session.payment_intent === "string"
+                ? session.payment_intent
+                : paymentIntent?.id,
+          },
+          guest: {
+            name: bookingDetails.guest_name,
+            email: bookingDetails.guest_email,
+          },
+          host:
+            hostFullName || hostEmail
               ? {
                   name: hostFullName,
                   email: hostEmail,
                 }
               : null,
-          },
-        };
-        
-        console.log("✅ Returning success response:", successResponse);
-        return NextResponse.json(successResponse);
-      }
+        },
+      };
+
+      console.log("✅ Returning success response:", successResponse);
+      return NextResponse.json(successResponse);
     }
 
     if (
       paymentIntentStatus === "requires_payment_method" ||
       paymentIntentStatus === "canceled"
     ) {
-      // Mark booking as failed if Stripe indicates failure
-      if (booking.payment_status !== "failed") {
-        await supabase
-          .from("bookings")
-          .update({
-            payment_status: "failed",
-            status: booking.status === "confirmed" ? booking.status : "cancelled",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", bookingId);
-      }
-
-      await supabase
-        .from("payment_transactions")
-        .update({
-          status: "failed",
-          updated_at: new Date().toISOString(),
-          failure_reason: paymentIntent?.last_payment_error?.message || "payment_failed",
-        })
-        .eq("booking_id", bookingId)
-        .eq("stripe_session_id", session.id);
-
       return NextResponse.json({
         success: false,
         sessionId: session.id,

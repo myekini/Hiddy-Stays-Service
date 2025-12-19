@@ -8,6 +8,7 @@ import {
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
 import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
+import { buildAppUrl } from '../lib/app-url';
 
 interface HostBookingNotificationProps {
   hostName: string;
@@ -34,9 +35,9 @@ export const HostBookingNotification = ({
   guestEmail,
   guestPhone,
   checkInDate,
-  checkInTime,
+  checkInTime: _checkInTime,
   checkOutDate,
-  checkOutTime,
+  checkOutTime: _checkOutTime,
   guests,
   bookingAmount,
   stripeFee,
@@ -50,7 +51,7 @@ export const HostBookingNotification = ({
       <Section style={earningsHero}>
         <Text style={heroTitle}>New Booking</Text>
         <Text style={heroAmount}>${netAmount.toFixed(2)}</Text>
-        <Text style={heroSubtext}>You keep 100%</Text>
+        <Text style={heroSubtext}>Paid and confirmed</Text>
       </Section>
 
       {/* Greeting */}
@@ -73,31 +74,19 @@ export const HostBookingNotification = ({
         </Section>
       </Section>
 
-      {/* Earnings Breakdown */}
+      {/* Earnings (simple) */}
       <Section style={earningsSection}>
         <Section style={earningsCard}>
-          <Text style={earningsTitle}>Earnings Breakdown</Text>
-          
+          <Text style={earningsTitle}>Earnings</Text>
           <Hr style={softDivider} />
-
           <Row style={earningsRow}>
             <Column>
-              <Text style={earningsLabel}>Amount</Text>
+              <Text style={earningsLabel}>Booking</Text>
             </Column>
             <Column align="right">
               <Text style={earningsValue}>${bookingAmount.toFixed(2)}</Text>
             </Column>
           </Row>
-
-          <Row style={earningsRow}>
-            <Column>
-              <Text style={earningsLabel}>Platform fee</Text>
-            </Column>
-            <Column align="right">
-              <Text style={zeroFee}>$0.00 ✨</Text>
-            </Column>
-          </Row>
-
           <Row style={earningsRow}>
             <Column>
               <Text style={earningsLabel}>Processing</Text>
@@ -106,15 +95,13 @@ export const HostBookingNotification = ({
               <Text style={earningsValue}>-${stripeFee.toFixed(2)}</Text>
             </Column>
           </Row>
-
           <Hr style={softDivider} />
-
           <Row style={totalRow}>
             <Column>
-              <Text style={totalLabel}>You keep</Text>
+              <Text style={totalLabel}>Net</Text>
             </Column>
             <Column align="right">
-              <Text style={totalValue}>${netAmount.toFixed(2)} 🎉</Text>
+              <Text style={totalValue}>${netAmount.toFixed(2)}</Text>
             </Column>
           </Row>
         </Section>
@@ -146,16 +133,12 @@ export const HostBookingNotification = ({
       {/* Action Buttons */}
       <Section style={ctaSection}>
         <Button
-          href={`https://hiddystays.com/bookings/${bookingId}?utm_source=email&utm_medium=host_notification&utm_campaign=host_experience`}
+          href={buildAppUrl(
+            `/bookings/${bookingId}?utm_source=email&utm_medium=host_notification&utm_campaign=host_experience`
+          )}
           style={primaryButton}
         >
           View Booking
-        </Button>
-        <Button
-          href={`mailto:${guestEmail}`}
-          style={secondaryButton}
-        >
-          Contact Guest
         </Button>
       </Section>
 
@@ -283,13 +266,6 @@ const earningsValue = {
   margin: '0',
 };
 
-const zeroFee = {
-  ...typography.bodySmall,
-  fontWeight: '600',
-  color: colors.accentGreen,
-  margin: '0',
-};
-
 const totalRow = {
   margin: '0',
 };
@@ -352,13 +328,6 @@ const ctaSection = {
 
 const primaryButton = {
   ...buttons.primary,
-  textDecoration: 'none',
-  display: 'inline-block',
-  margin: `0 ${spacing.xs} ${spacing.sm} ${spacing.xs}`,
-};
-
-const secondaryButton = {
-  ...buttons.secondary,
   textDecoration: 'none',
   display: 'inline-block',
   margin: `0 ${spacing.xs} ${spacing.sm} ${spacing.xs}`,

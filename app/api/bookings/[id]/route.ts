@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { authenticateUser, createAuthResponse } from "@/lib/auth-middleware";
+import { verifyBookingAccessToken } from "@/lib/booking-access-token";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -46,6 +48,17 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    const tokenFromQuery = request.nextUrl.searchParams.get("token") || "";
+    const tokenFromHeader = request.headers.get("x-booking-access-token") || "";
+    const token = tokenFromQuery || tokenFromHeader;
+    const tokenPayload = token ? verifyBookingAccessToken(token) : null;
+    const tokenAllowsAccess = Boolean(tokenPayload && tokenPayload.bookingId === id);
+
+    const user = tokenAllowsAccess ? null : await authenticateUser(request);
+    if (!tokenAllowsAccess && !user) {
+      return createAuthResponse("Unauthorized");
+    }
 
     // Validate booking ID format
     if (
@@ -98,6 +111,16 @@ export async function GET(
       )
       .eq("id", id)
       .single();
+
+    if (!tokenAllowsAccess && booking && booking.guest_id !== user!.profile_id && booking.host_id !== user!.profile_id) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          message: "You don't have permission to view this booking",
+        },
+        { status: 403 }
+      );
+    }
 
     if (error) {
       console.error("Booking retrieval error:", error);
@@ -168,6 +191,11 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    const user = await authenticateUser(request);
+    if (!user) {
+      return createAuthResponse("Unauthorized");
+    }
+
     // Validate booking ID format
     if (
       !id ||
@@ -212,6 +240,19 @@ export async function PUT(
           message: "The booking you're trying to update doesn't exist",
         },
         { status: 404 }
+      );
+    }
+
+    if (
+      existingBooking.guest_id !== user.profile_id &&
+      existingBooking.host_id !== user.profile_id
+    ) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          message: "You don't have permission to update this booking",
+        },
+        { status: 403 }
       );
     }
 
@@ -347,6 +388,11 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    const user = await authenticateUser(request);
+    if (!user) {
+      return createAuthResponse("Unauthorized");
+    }
+
     // Validate booking ID format
     if (
       !id ||
@@ -378,6 +424,16 @@ export async function DELETE(
           message: "The booking you're trying to cancel doesn't exist",
         },
         { status: 404 }
+      );
+    }
+
+    if (booking.guest_id !== user.profile_id && booking.host_id !== user.profile_id) {
+      return NextResponse.json(
+        {
+          error: "Forbidden",
+          message: "You don't have permission to cancel this booking",
+        },
+        { status: 403 }
       );
     }
 

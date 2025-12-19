@@ -293,12 +293,15 @@ BEGIN
   -- Delete bookings that are:
   -- 1. Status = 'pending'
   -- 2. Payment status = 'pending'
-  -- 3. Created more than 1 hour ago
+  -- 3. Created more than 1 hour ago (card) OR more than 24 hours ago (bank transfer)
   WITH deleted AS (
     DELETE FROM public.bookings
     WHERE status = 'pending'
     AND payment_status = 'pending'
-    AND created_at < NOW() - INTERVAL '1 hour'
+    AND (
+      (payment_method = 'bank_transfer' AND created_at < NOW() - INTERVAL '24 hours')
+      OR ((payment_method IS NULL OR payment_method <> 'bank_transfer') AND created_at < NOW() - INTERVAL '1 hour')
+    )
     RETURNING id
   )
   SELECT ARRAY_AGG(id), COUNT(*) INTO deleted_ids, count FROM deleted;

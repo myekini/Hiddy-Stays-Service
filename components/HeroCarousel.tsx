@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 const CAROUSEL_IMAGES = [
   {
@@ -13,6 +14,14 @@ const CAROUSEL_IMAGES = [
   {
     src: "/assets/night_city_view_from_upstair.jpg",
     alt: "Breathtaking night city view from apartment",
+  },
+  {
+    src: "/assets/city_view_from_backyard.jpg",
+    alt: "City view from the property",
+  },
+  {
+    src: "/assets/sititng_room_washhand_base.jpg",
+    alt: "Living room and wash-hand base",
   },
   {
     src: "/assets/dining_area.jpg",
@@ -30,6 +39,14 @@ const CAROUSEL_IMAGES = [
     src: "/assets/apartment_lobby_ss.jpg",
     alt: "Elegant building lobby and waiting area",
   },
+  {
+    src: "/assets/Gym_area_ss.jpg",
+    alt: "Gym area",
+  },
+  {
+    src: "/balcony.jpeg",
+    alt: "Balcony",
+  },
 ];
 
 const AUTO_SCROLL_INTERVAL = 5000; // 5 seconds
@@ -37,134 +54,243 @@ const AUTO_SCROLL_INTERVAL = 5000; // 5 seconds
 export function HeroCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   const goToSlide = useCallback((index: number) => {
-    setCurrentIndex(index);
+    setCurrentIndex(index % CAROUSEL_IMAGES.length);
   }, []);
 
   const goToNext = useCallback(() => {
-    goToSlide((currentIndex + 1) % CAROUSEL_IMAGES.length);
-  }, [currentIndex, goToSlide]);
+    setCurrentIndex(prev => (prev + 1) % CAROUSEL_IMAGES.length);
+  }, []);
 
   const goToPrev = useCallback(() => {
-    goToSlide(
-      currentIndex === 0 ? CAROUSEL_IMAGES.length - 1 : currentIndex - 1
-    );
-  }, [currentIndex, goToSlide]);
+    setCurrentIndex(prev => (prev === 0 ? CAROUSEL_IMAGES.length - 1 : prev - 1));
+  }, []);
+
+  useEffect(() => {
+    if (currentIndex >= CAROUSEL_IMAGES.length) {
+      setCurrentIndex(0);
+    }
+  }, [currentIndex]);
 
   // Auto-scroll functionality
   useEffect(() => {
     if (isPaused) return;
 
-    const intervalId = setInterval(goToNext, AUTO_SCROLL_INTERVAL);
+    const intervalId = setInterval(() => {
+      goToNext();
+    }, AUTO_SCROLL_INTERVAL);
+    
     return () => clearInterval(intervalId);
   }, [currentIndex, isPaused, goToNext]);
 
-  // Keyboard navigation
+  // Handle keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isZoomed) {
+          setIsZoomed(false);
+          return;
+        }
+        if (isFullscreen) {
+          document.exitFullscreen().catch(() => {});
+          setIsFullscreen(false);
+          return;
+        }
+      }
+      
       if (e.key === "ArrowLeft") goToPrev();
-      if (e.key === "ArrowRight") goToNext();
-      if (e.key === " " || e.key === "Escape") setIsPaused(prev => !prev);
+      else if (e.key === "ArrowRight") goToNext();
+      else if (e.key === " ") setIsPaused(prev => !prev);
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goToNext, goToPrev]);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, isZoomed, goToPrev, goToNext, setIsZoomed, setIsFullscreen, setIsPaused]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await carouselRef.current?.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      // noop
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   return (
     <div
-      className="relative w-full h-full overflow-hidden"
+      ref={carouselRef}
+      className={cn(
+        "relative w-full h-full overflow-hidden bg-black transition-all duration-300",
+        isFullscreen ? "fixed inset-0 z-50" : "rounded-xl shadow-2xl"
+      )}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       role="region"
       aria-label="Image carousel"
       aria-live="polite"
+      onClick={(e) => e.stopPropagation()}
     >
-      {/* Carousel Images */}
+      {/* Main Image */}
       <div className="relative w-full h-full">
-        {CAROUSEL_IMAGES.map((image, index) => (
-          <div
-            key={index}
-            className={cn(
-              "absolute inset-0 transition-opacity duration-1000 ease-in-out",
-              index === currentIndex ? "opacity-100 z-10" : "opacity-0 z-0"
-            )}
-            aria-hidden={index !== currentIndex}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentIndex}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative w-full h-full"
           >
-            <Image
-              src={image.src}
-              alt={image.alt}
-              fill
-              priority={index === 0}
-              quality={85}
-              sizes="100vw"
-              className="object-cover transition-transform duration-300 hover:scale-105"
-              style={{
-                objectFit: 'cover',
-                objectPosition: 'center center'
+            <div 
+              className={cn(
+                "relative w-full h-full transition-transform duration-300",
+                isZoomed ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"
+              )}
+              onClick={(e) => {
+                if (!isZoomed) {
+                  e.stopPropagation();
+                  setIsZoomed(true);
+                }
               }}
-              placeholder="blur"
-              blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
-            />
-          </div>
-        ))}
+            >
+              <Image
+                src={CAROUSEL_IMAGES[currentIndex].src}
+                alt={CAROUSEL_IMAGES[currentIndex].alt}
+                fill
+                className={cn(
+                  "transition-transform duration-300",
+                  isFullscreen && !isZoomed ? "object-contain" : "object-cover",
+                  isZoomed ? "scale-150" : ""
+                )}
+                priority
+                draggable={isZoomed}
+                onDragStart={(e) => isZoomed && e.preventDefault()}
+              />
+              {isZoomed && (
+                <div 
+                  className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded-full cursor-pointer z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsZoomed(false);
+                  }}
+                >
+                  <X size={20} />
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/50 text-white text-sm rounded-full backdrop-blur-sm">
+              {currentIndex + 1} / {CAROUSEL_IMAGES.length}
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Dark Overlay for text readability */}
-      <div className="absolute inset-0 bg-black/25 z-20" />
+      <div className="absolute inset-0 bg-black/25 z-20 pointer-events-none" />
+
+      {/* Navigation Controls */}
+      <div className="absolute top-4 right-4 flex gap-2 z-30">
+        <button
+          onClick={toggleFullscreen}
+          className="p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-all"
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+        </button>
+        {isFullscreen && (
+          <button
+            onClick={() => {
+              document.exitFullscreen().catch(() => {});
+              setIsFullscreen(false);
+            }}
+            className="p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-all"
+            aria-label="Close fullscreen"
+          >
+            <X size={20} />
+          </button>
+        )}
+      </div>
 
       {/* Navigation Arrows */}
       <button
-        onClick={goToPrev}
-        className={cn(
-          "absolute left-4 top-1/2 -translate-y-1/2 z-50",
-          "bg-white/20 hover:bg-white/40 backdrop-blur-sm p-3 rounded-full",
-          "transition-all duration-200",
-          "opacity-100 hover:scale-110"
-        )}
-        aria-label="Previous slide"
+        onClick={(e) => {
+          e.stopPropagation();
+          goToPrev();
+        }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 z-30"
+        aria-label="Previous image"
       >
-        <ChevronLeft className="w-6 h-6 text-white" />
+        <ChevronLeft size={24} />
       </button>
-
       <button
-        onClick={goToNext}
-        className={cn(
-          "absolute right-4 top-1/2 -translate-y-1/2 z-50",
-          "bg-white/20 hover:bg-white/40 backdrop-blur-sm p-3 rounded-full",
-          "transition-all duration-200",
-          "opacity-100 hover:scale-110"
-        )}
-        aria-label="Next slide"
+        onClick={(e) => {
+          e.stopPropagation();
+          goToNext();
+        }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 z-30"
+        aria-label="Next image"
       >
-        <ChevronRight className="w-6 h-6 text-white" />
+        <ChevronRight size={24} />
       </button>
 
-      {/* Navigation Dots */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-2">
-        {CAROUSEL_IMAGES.map((_, index) => (
+      {/* Zoom Controls */}
+      <div className="absolute bottom-4 right-4 z-30 flex gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsZoomed(prev => !prev);
+          }}
+          className="p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-all"
+          aria-label={isZoomed ? "Zoom out" : "Zoom in"}
+        >
+          {isZoomed ? <Minimize2 size={20} /> : <ZoomIn size={20} />}
+        </button>
+      </div>
+
+      {/* Thumbnails */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-30 p-2 bg-black/30 backdrop-blur-sm rounded-full">
+        {CAROUSEL_IMAGES.map((img, index) => (
           <button
             key={index}
             onClick={() => goToSlide(index)}
             className={cn(
-              "w-2 h-2 rounded-full transition-all duration-300",
-              index === currentIndex
-                ? "bg-white w-8"
-                : "bg-white/50 hover:bg-white/75"
+              "w-12 h-12 md:w-16 md:h-16 rounded-md overflow-hidden border-2 transition-all duration-300 hover:scale-105",
+              index === currentIndex 
+                ? "border-white scale-110" 
+                : "border-transparent opacity-70 hover:opacity-100"
             )}
-            aria-label={`Go to slide ${index + 1}`}
-            aria-current={index === currentIndex ? "true" : "false"}
-          />
+            aria-label={`View image ${index + 1}`}
+          >
+            <Image
+              src={img.src}
+              alt=""
+              width={64}
+              height={64}
+              className="w-full h-full object-cover"
+            />
+          </button>
         ))}
       </div>
 
-      {/* Pause indicator (optional) */}
-      {isPaused && (
-        <div className="absolute top-4 right-4 z-30 bg-black/50 backdrop-blur-sm px-3 py-1 rounded-full text-white text-xs">
-          Paused
-        </div>
-      )}
+      {/* Remove the paused indicator as it's not needed */}
     </div>
   );
 }

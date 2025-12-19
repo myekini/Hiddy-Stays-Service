@@ -25,6 +25,16 @@ export async function POST(
     const resolvedParams = await params;
     const bookingId = resolvedParams.id;
 
+    const { data: hostProfile, error: hostProfileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (hostProfileError || !hostProfile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { reason } = body;
 
@@ -40,6 +50,7 @@ export async function POST(
         payment_status,
         check_in_date,
         check_out_date,
+        host_id,
         properties!inner (
           host_id,
           title
@@ -57,7 +68,7 @@ export async function POST(
     }
 
     // Verify user is the property host
-    if (booking.properties.host_id !== user.id) {
+    if (booking.properties.host_id !== hostProfile.id && booking.host_id !== hostProfile.id) {
       return NextResponse.json(
         { error: "Only the property host can reject bookings" },
         { status: 403 }

@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
-  CheckCircle,
   Copy,
-  CreditCard,
   Home,
   Loader2,
   MapPin,
@@ -16,12 +15,12 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BookingDetails {
   id: string;
@@ -53,6 +52,7 @@ interface BookingResponse {
 
 interface BookingPaymentScreenProps {
   bookingId: string;
+  accessToken?: string;
 }
 
 interface BankTransferInstructions {
@@ -66,7 +66,7 @@ interface BankTransferInstructions {
   notes: string;
 }
 
-export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
+export function BookingPaymentScreen({ bookingId, accessToken }: BookingPaymentScreenProps) {
   const router = useRouter();
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +79,21 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
   useEffect(() => {
     const loadBooking = async () => {
       try {
-        const res = await fetch(`/api/bookings/${bookingId}`);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const bookingUrl = accessToken
+          ? `/api/bookings/${bookingId}?token=${encodeURIComponent(accessToken)}`
+          : `/api/bookings/${bookingId}`;
+
+        const res = await fetch(bookingUrl, {
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        });
         const body: BookingResponse = await res.json();
 
         if (!res.ok || !(body.booking || body.data)) {
@@ -95,18 +109,20 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
     };
 
     loadBooking();
-  }, [bookingId]);
+  }, [bookingId, accessToken]);
 
   const propertyTitle = booking?.property?.title || "Property";
   const propertyAddress = booking?.property?.address || booking?.property?.location;
   const propertyImage = booking?.property?.images?.[0];
 
-  const formatDate = (value: string) =>
-    new Date(value).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
+  const displayCurrency = (booking?.currency || "CAD").toUpperCase();
+  const formatMoney = (amount: number) =>
+    new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: displayCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
 
   const nights = booking
     ? Math.max(
@@ -124,14 +140,15 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
 
     setPaying(true);
     try {
+      const tokenParam = accessToken ? `&token=${encodeURIComponent(accessToken)}` : "";
       const response = await fetch("/api/payments/create-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: booking.id,
           propertyId: booking.property_id,
-          success_url: `${window.location.origin}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${window.location.origin}/booking/cancel?booking_id=${booking.id}`,
+          success_url: `${window.location.origin}/booking/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}${tokenParam}`,
+          cancel_url: `${window.location.origin}/booking/cancel?booking_id=${booking.id}${tokenParam}`,
         }),
       });
 
@@ -166,7 +183,7 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
     }
   };
 
-  const fetchBankInstructions = async () => {
+  const fetchBankInstructions = useCallback(async () => {
     if (!booking) return;
     if (bankInstructions) return;
 
@@ -180,11 +197,13 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
 
       const data = await response.json();
       if (!response.ok || !data.instructions) {
-        throw new Error(data.error || data.message || "Unable to prepare bank transfer instructions.");
+        throw new Error(
+          data.error || data.message || "Unable to prepare bank transfer instructions."
+        );
       }
 
       if (data.booking) {
-        setBooking((prev) =>
+        setBooking(prev =>
           prev
             ? {
                 ...prev,
@@ -208,14 +227,14 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
     } finally {
       setRequestingBankTransfer(false);
     }
-  };
+  }, [bankInstructions, booking]);
 
   // Fetch bank instructions when bank method is selected
   useEffect(() => {
     if (paymentMethod === "bank" && !bankInstructions) {
       fetchBankInstructions();
     }
-  }, [paymentMethod]);
+  }, [paymentMethod, bankInstructions, fetchBankInstructions]);
 
   if (loading) {
     return (
@@ -266,11 +285,15 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
           <div className="border rounded-xl p-4 bg-slate-50 dark:bg-slate-900 space-y-4">
             <div className="flex gap-3">
               {propertyImage ? (
-                <img 
-                  src={propertyImage} 
-                  alt={propertyTitle} 
-                  className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                />
+                <div className="relative w-20 h-20 flex-shrink-0">
+                  <Image
+                    src={propertyImage}
+                    alt={propertyTitle}
+                    fill
+                    sizes="80px"
+                    className="object-cover rounded-lg"
+                  />
+                </div>
               ) : (
                 <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Home className="w-8 h-8 text-slate-400" />
@@ -296,7 +319,7 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
             <Separator />
             <div className="flex justify-between items-center">
               <span className="text-sm text-slate-600 dark:text-slate-400">Total</span>
-              <span className="text-lg font-bold">${Number(booking.total_amount).toLocaleString()} {booking.currency || "USD"}</span>
+              <span className="text-lg font-bold">{formatMoney(Number(booking.total_amount) || 0)}</span>
             </div>
           </div>
         </div>
@@ -380,7 +403,7 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
                                 <span className="font-medium">{bankInstructions.accountName}</span>
                               </div>
                               <div className="flex justify-between py-1 border-b border-dashed border-slate-200 dark:border-slate-700">
-                                <span className="text-slate-500">Account Number</span>
+                                <span className="text-slate-500">Account Number / Email</span>
                                 <span className="font-medium">{bankInstructions.accountNumber}</span>
                               </div>
                               <div className="flex justify-between py-1 border-b border-dashed border-slate-200 dark:border-slate-700">
@@ -435,11 +458,15 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
              <div className="sticky top-24 border rounded-xl p-6 shadow-lg bg-white dark:bg-slate-900 space-y-6">
                 <div className="flex gap-4">
                   {propertyImage ? (
-                    <img 
-                      src={propertyImage} 
-                      alt={propertyTitle} 
-                      className="w-28 h-28 object-cover rounded-xl"
-                    />
+                    <div className="relative w-28 h-28 flex-shrink-0">
+                      <Image
+                        src={propertyImage}
+                        alt={propertyTitle}
+                        fill
+                        sizes="112px"
+                        className="object-cover rounded-xl"
+                      />
+                    </div>
                   ) : (
                     <div className="w-28 h-28 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl flex items-center justify-center">
                       <Home className="w-10 h-10 text-slate-400" />
@@ -474,7 +501,7 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
                   <h3 className="font-semibold text-lg">Price details</h3>
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <span>Total for {nights} night{nights !== 1 ? 's' : ''}</span>
-                    <span>${booking.total_amount}</span>
+                    <span>{formatMoney(Number(booking.total_amount) || 0)}</span>
                   </div>
                   <p className="text-xs text-slate-500">
                     Includes all fees and taxes
@@ -483,8 +510,8 @@ export function BookingPaymentScreen({ bookingId }: BookingPaymentScreenProps) {
                   <Separator />
                   
                   <div className="flex justify-between font-semibold text-lg">
-                    <span>Total ({booking.currency || "USD"})</span>
-                    <span>${Number(booking.total_amount).toLocaleString()}</span>
+                    <span>Total ({displayCurrency})</span>
+                    <span>{formatMoney(Number(booking.total_amount) || 0)}</span>
                   </div>
                 </div>
              </div>

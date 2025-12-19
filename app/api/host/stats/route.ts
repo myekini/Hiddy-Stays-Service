@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function GET(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: "Server misconfiguration" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
     const { searchParams } = new URL(request.url);
     const hostId = searchParams.get("host_id");
-    const limit = parseInt(searchParams.get("limit") || "10");
 
     if (!hostId) {
       return NextResponse.json(
@@ -19,12 +25,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(`Fetching host stats for host: ${hostId}`);
-
     // Get total properties
     const { count: totalProperties } = await supabase
       .from("properties")
       .select("*", { count: "exact", head: true })
+      .eq("host_id", hostId);
+
+    // Compute rating from properties table (kept in sync by review triggers)
+    const { data: propertiesForRating } = await supabase
+      .from("properties")
+      .select("rating, review_count")
       .eq("host_id", hostId);
 
     // Get active bookings count
@@ -35,14 +45,16 @@ export async function GET(request: NextRequest) {
       .in("status", ["pending", "confirmed"]);
 
     // Get monthly revenue (current month)
-    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const { data: monthlyBookings } = await supabase
       .from("bookings")
       .select("total_amount")
       .eq("host_id", hostId)
       .eq("status", "confirmed")
-      .gte("created_at", `${currentMonth}-01`)
-      .lt("created_at", `${currentMonth}-32`);
+      .gte("created_at", monthStart.toISOString())
+      .lt("created_at", nextMonthStart.toISOString());
 
     const monthlyRevenue =
       monthlyBookings?.reduce(
@@ -50,17 +62,20 @@ export async function GET(request: NextRequest) {
         0
       ) || 0;
 
-    // Get average rating
-    const { data: reviews } = await supabase
-      .from("reviews")
-      .select("rating")
-      .eq("host_id", hostId);
+    const ratingAgg = (propertiesForRating || []).reduce(
+      (acc, p) => {
+        const count = Number((p as { review_count?: unknown }).review_count) || 0;
+        const rating = Number((p as { rating?: unknown }).rating) || 0;
+        if (count > 0 && Number.isFinite(rating)) {
+          acc.sum += rating * count;
+          acc.count += count;
+        }
+        return acc;
+      },
+      { sum: 0, count: 0 }
+    );
 
-    const avgRating =
-      reviews && reviews.length > 0
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) /
-          reviews.length
-        : 0;
+    const avgRating = ratingAgg.count > 0 ? ratingAgg.sum / ratingAgg.count : 0;
 
     const stats = {
       total_properties: totalProperties || 0,
@@ -70,8 +85,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json(stats);
-  } catch (error) {
-    console.error("Error fetching host stats:", error);
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -8,6 +8,7 @@ import {
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
 import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
+import { buildAppUrl } from '../lib/app-url';
 
 interface BookingCancellationProps {
   guestName: string;
@@ -82,7 +83,9 @@ export const BookingCancellation = ({
 
       <Section style={ctaSection}>
         <Button
-          href="https://hiddystays.com/properties"
+          href={buildAppUrl(
+            `/properties?utm_source=email&utm_medium=booking_cancellation&utm_campaign=guest_experience`
+          )}
           style={primaryButton}
         >
           Find another stay

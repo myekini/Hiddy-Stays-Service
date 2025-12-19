@@ -18,11 +18,11 @@ interface BankInstructions {
 }
 
 const defaultInstructions = (bookingId: string): BankInstructions => ({
-  accountName: process.env.BANK_TRANSFER_ACCOUNT_NAME || "Zero Fee Stays",
+  accountName: process.env.BANK_TRANSFER_ACCOUNT_NAME || "Hidayat",
   bankName: process.env.BANK_TRANSFER_BANK_NAME || "Your Preferred Bank",
   accountNumber:
     process.env.BANK_TRANSFER_ACCOUNT_NUMBER?.replace(/\s+/g, "") ||
-    "1234567890",
+    "Hidayahyekeen@gmail.com",
   routingNumber:
     process.env.BANK_TRANSFER_ROUTING_NUMBER?.replace(/\s+/g, "") ||
     "000111222",
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         booking_id: bookingId,
         transaction_type: "bank_transfer",
         amount: booking.total_amount,
-        currency: booking.currency || "USD",
+        currency: booking.currency || "CAD",
         status: "pending",
         payment_method_type: "bank_transfer",
         metadata: {
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         payment_status: "pending",
         payment_method: "bank_transfer",
         total_amount: booking.total_amount,
-        currency: booking.currency || "USD",
+        currency: booking.currency || "CAD",
       },
       instructions,
     });

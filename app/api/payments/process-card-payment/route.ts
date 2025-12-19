@@ -81,14 +81,35 @@ export async function POST(request: NextRequest) {
       return_url: `${process.env.APP_URL || "http://localhost:3000"}/booking-success`,
     });
 
-    // Update booking with payment intent ID
-    await supabase
+    const nowIso = new Date().toISOString();
+    const paymentStatus =
+      paymentIntent.status === "succeeded"
+        ? "paid"
+        : paymentIntent.status === "requires_payment_method" ||
+            paymentIntent.status === "canceled"
+          ? "failed"
+          : "pending";
+
+    const bookingStatus = paymentIntent.status === "succeeded" ? "confirmed" : "pending";
+
+    const { error: bookingUpdateError } = await supabase
       .from("bookings")
       .update({
+        status: bookingStatus,
+        payment_status: paymentStatus,
+        payment_method: "card",
+        payment_intent_id: paymentIntent.id,
         stripe_payment_intent_id: paymentIntent.id,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq("id", booking_id);
+
+    if (bookingUpdateError) {
+      return NextResponse.json(
+        { error: "Failed to update booking payment status" },
+        { status: 500 }
+      );
+    }
 
     // If payment requires additional action (like 3D Secure)
     if (paymentIntent.status === "requires_action") {
@@ -108,15 +129,6 @@ export async function POST(request: NextRequest) {
 
     // If payment succeeded immediately
     if (paymentIntent.status === "succeeded") {
-      // Update booking status to confirmed
-      await supabase
-        .from("bookings")
-        .update({
-          status: "confirmed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", booking_id);
-
       return NextResponse.json({
         success: true,
         message: "Card payment processed successfully",

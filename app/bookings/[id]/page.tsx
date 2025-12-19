@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import {
-  Calendar,
   User,
   DollarSign,
   Clock,
@@ -25,7 +23,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +76,7 @@ interface Booking {
 
 export default function BookingDetailsPage() {
   const { toast } = useToast();
-  const { user, authUser } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const params = useParams();
   const bookingId = params?.id as string;
@@ -89,35 +86,36 @@ export default function BookingDetailsPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    if (authUser?.id && bookingId) {
-      loadBookingDetails();
-    }
-  }, [authUser, bookingId]);
-
-  const loadBookingDetails = async () => {
+  const loadBookingDetails = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`);
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
+      });
 
       if (response.ok) {
         const data = await response.json();
         setBooking(data.booking);
-
-        // Check if the booking belongs to the current user
-        if (data.booking.guest_id !== authUser?.id) {
+      } else {
+        const err = await response.json().catch(() => ({}));
+        if (response.status === 401 || response.status === 403) {
           toast({
             title: "Access Denied",
-            description: "You don't have permission to view this booking",
+            description:
+              err.message || err.error || "You don't have permission to view this booking",
             variant: "destructive",
           });
           router.push("/bookings");
+          return;
         }
-      } else {
-        throw new Error("Failed to load booking details");
+
+        throw new Error(err.message || err.error || "Failed to load booking details");
       }
     } catch (error) {
-      console.error("Error loading booking details:", error);
       toast({
         title: "Error",
         description: "Failed to load booking details",
@@ -127,16 +125,29 @@ export default function BookingDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, router, session?.access_token, toast]);
+
+  useEffect(() => {
+    if (session?.access_token && bookingId) {
+      loadBookingDetails();
+    }
+  }, [bookingId, loadBookingDetails, session?.access_token]);
 
   const handleCancelBooking = async () => {
     setCancelling(true);
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/bookings/cancel`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
         },
+        body: JSON.stringify({
+          bookingId,
+          reason: "Cancelled by guest",
+        }),
       });
 
       if (response.ok) {
@@ -153,7 +164,6 @@ export default function BookingDetailsPage() {
         throw new Error(errorData.message || "Failed to cancel booking");
       }
     } catch (error) {
-      console.error("Error cancelling booking:", error);
       toast({
         title: "Error",
         description:

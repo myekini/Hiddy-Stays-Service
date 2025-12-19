@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   format,
-  addDays,
-  differenceInDays,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
@@ -14,29 +12,16 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  Plus,
-  Minus,
   Lock,
   Unlock,
-  Clock,
   Users,
   DollarSign,
-  AlertCircle,
-  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -50,13 +35,26 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CalendarDay {
   date: string;
   is_available: boolean;
   is_booked: boolean;
   is_blocked: boolean;
-  booking?: any;
+  booking?: {
+    id?: string;
+    check_in_date?: string;
+    check_out_date?: string;
+    status?: string;
+    guests_count?: number;
+    total_amount?: number;
+    currency?: string;
+  } | null;
+  blocked_date?: {
+    reason?: string | null;
+    price_override?: number | null;
+  } | null;
 }
 
 interface CalendarManagementProps {
@@ -70,13 +68,13 @@ export function CalendarManagement({
   propertyId: initialPropertyId,
   isOpen,
   onClose,
-  properties = [],
+  properties: _properties = [],
 }: CalendarManagementProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarData, setCalendarData] = useState<CalendarDay[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<CalendarDay["booking"][]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState(initialPropertyId);
   const propertyId = selectedPropertyId;
   const [selectedDates, setSelectedDates] = useState<{
@@ -90,35 +88,54 @@ export function CalendarManagement({
   const [blockReason, setBlockReason] = useState("");
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
 
+  const formatMoney = (amount: number, currency?: string) => {
+    const code = (currency || "CAD").toUpperCase();
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const getAuthHeaders = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return headers;
+  };
+
   useEffect(() => {
     setSelectedPropertyId(initialPropertyId);
   }, [initialPropertyId]);
 
-  useEffect(() => {
-    if (isOpen && propertyId) {
-      loadCalendarData();
-    }
-  }, [isOpen, propertyId, currentMonth]);
-
-  const loadCalendarData = async () => {
+  const loadCalendarData = useCallback(async () => {
     setLoading(true);
     try {
       const startDate = startOfMonth(currentMonth).toISOString().split("T")[0];
       const endDate = endOfMonth(currentMonth).toISOString().split("T")[0];
 
+      const headers = await getAuthHeaders();
+
       const response = await fetch(
-        `/api/calendar?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`
+        `/api/calendar?property_id=${propertyId}&start_date=${startDate}&end_date=${endDate}`,
+        {
+          headers,
+        }
       );
 
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data.calendar);
-        setBookings(data.bookings);
+        setBookings(data.bookings || []);
       } else {
         throw new Error("Failed to load calendar data");
       }
-    } catch (error) {
-      console.error("Error loading calendar:", error);
+    } catch {
       toast({
         title: "Error",
         description: "Failed to load calendar data",
@@ -127,7 +144,13 @@ export function CalendarManagement({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth, propertyId, toast]);
+
+  useEffect(() => {
+    if (isOpen && propertyId) {
+      loadCalendarData();
+    }
+  }, [isOpen, propertyId, currentMonth, loadCalendarData]);
 
   const handleDateClick = (date: string) => {
     if (!selectedDates.start) {
@@ -155,9 +178,10 @@ export function CalendarManagement({
 
     setLoading(true);
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/calendar", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           property_id: propertyId,
           start_date: selectedDates.start,
@@ -183,7 +207,6 @@ export function CalendarManagement({
         throw new Error(error.error || "Failed to block dates");
       }
     } catch (error) {
-      console.error("Error blocking dates:", error);
       toast({
         title: "Error",
         description:
@@ -207,9 +230,10 @@ export function CalendarManagement({
 
     setLoading(true);
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/calendar", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           property_id: propertyId,
           start_date: selectedDates.start,
@@ -230,7 +254,6 @@ export function CalendarManagement({
         throw new Error(error.error || "Failed to unblock dates");
       }
     } catch (error) {
-      console.error("Error unblocking dates:", error);
       toast({
         title: "Error",
         description:
@@ -266,7 +289,7 @@ export function CalendarManagement({
 
   const getBlockedDateInfo = (date: string) => {
     const dayData = calendarData.find((d) => d.date === date);
-    return (dayData as any)?.blocked_date || null;
+    return dayData?.blocked_date || null;
   };
 
   const isDateSelected = (date: string) => {
@@ -316,10 +339,11 @@ export function CalendarManagement({
                 <p className="text-sm">
                   <strong>Blocked:</strong>{" "}
                   {blockedInfo.reason || "Host blocked"}
-                  {blockedInfo.price_override && (
+                  {blockedInfo.price_override != null && (
                     <>
                       <br />
-                      <strong>Price:</strong> ${blockedInfo.price_override}
+                      <strong>Price:</strong>{" "}
+                      {formatMoney(blockedInfo.price_override)}
                     </>
                   )}
                 </p>
@@ -339,7 +363,7 @@ export function CalendarManagement({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader className="pb-6">
           <DialogTitle className="text-2xl font-semibold text-slate-900 tracking-tight">
             Calendar Management
@@ -475,7 +499,23 @@ export function CalendarManagement({
           <Card className="p-4">
             <h4 className="font-semibold mb-4 text-foreground">Recent Bookings</h4>
             <div className="space-y-3">
-              {bookings.slice(0, 5).map((booking) => (
+              {bookings
+                .filter(
+                  (
+                    booking
+                  ): booking is NonNullable<(typeof bookings)[number]> =>
+                    Boolean(booking)
+                )
+                .filter(
+                  (
+                    booking
+                  ): booking is NonNullable<(typeof bookings)[number]> & {
+                    check_in_date: string;
+                    check_out_date: string;
+                  } => Boolean(booking.check_in_date && booking.check_out_date)
+                )
+                .slice(0, 5)
+                .map((booking) => (
                 <div
                   key={booking.id}
                   className="flex items-center justify-between p-3 bg-muted rounded-lg"
@@ -503,7 +543,7 @@ export function CalendarManagement({
                     </div>
                     <div className="flex items-center gap-1">
                       <DollarSign className="w-4 h-4" />
-                      <span>${booking.total_amount}</span>
+                      <span>{formatMoney(Number(booking.total_amount) || 0, booking.currency)}</span>
                     </div>
                   </div>
                 </div>

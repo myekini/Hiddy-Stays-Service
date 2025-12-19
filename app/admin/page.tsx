@@ -2,23 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Header from "@/components/Header";
-import { supabase } from "@/integrations/supabase/client";
+import BackButton from "@/components/ui/BackButton";
 import {
-  Users,
-  Home,
-  DollarSign,
   Calendar,
-  TrendingUp,
   Shield,
-  Mail,
-  Settings,
-  BarChart3,
   UserCheck,
   Building,
 } from "lucide-react";
@@ -27,84 +20,99 @@ import {
 import AdminUserManagement from "@/components/AdminUserManagement";
 import AdminPropertyManagement from "@/components/AdminPropertyManagement";
 import AdminBookingManagement from "@/components/AdminBookingManagement";
-import PlatformAnalytics from "@/components/PlatformAnalytics";
 
 export default function AdminDashboard() {
-  const { user, hasPermission } = useAuth();
+  const { user, authUser, loading: authLoading, hasPermission } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [stats, setStats] = useState<any>({
-    users: { total: 0, verified: 0, byRole: { user: 0, host: 0, admin: 0 } },
-    properties: { total: 0, active: 0, inactive: 0 },
-    bookings: {
-      total: 0,
-      byStatus: { pending: 0, confirmed: 0, cancelled: 0 },
-    },
-    revenue: { total: 0, thisMonth: 0 },
-  });
-
-  // Fetch admin stats from API
-  const fetchAdminStats = async () => {
-    try {
-      // Get the session token from Supabase
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (!token) {
-        console.error("No auth token available");
-        return;
-      }
-
-      const response = await fetch("/api/admin/stats", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.stats);
-        console.log("✅ Admin stats loaded:", data);
-      } else {
-        console.error("❌ Failed to fetch admin stats:", response.statusText);
-      }
-    } catch (error) {
-      console.error("❌ Error fetching admin stats:", error);
-    }
-  };
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [activeTab, setActiveTab] = useState("users");
 
   useEffect(() => {
     // Check if user has admin permission
     const checkPermission = async () => {
+      if (authLoading) return;
+
       if (!user) {
-        router.push("/auth");
+        router.replace("/auth?mode=signin&next=/admin");
         return;
       }
 
       const isAdmin = await hasPermission("admin");
       if (!isAdmin) {
-        router.push("/");
+        setAccessDenied(true);
+        setLoading(false);
         return;
       }
 
       setLoading(false);
-      // Fetch stats after permission check
-      fetchAdminStats();
     };
 
     checkPermission();
-  }, [user, router, hasPermission]);
+  }, [authLoading, user, authUser, router, hasPermission]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading admin dashboard...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <Card className="w-full max-w-md p-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-slate-200/70 dark:border-slate-800/70 rounded-2xl ring-1 ring-black/5 dark:ring-white/10">
+          <div className="space-y-6">
+            <div className="flex items-center justify-center">
+              <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center">
+                <Shield className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Loading Admin Dashboard</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Verifying your account permissions.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="h-2 w-full rounded-full bg-slate-200/70 dark:bg-slate-800 overflow-hidden">
+                <div className="h-full w-1/3 bg-slate-900/70 dark:bg-white/70 animate-pulse" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+                <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <Card className="w-full max-w-lg p-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-slate-200/70 dark:border-slate-800/70 rounded-2xl ring-1 ring-black/5 dark:ring-white/10">
+          <div className="space-y-6 text-center">
+            <div className="flex items-center justify-center">
+              <div className="h-12 w-12 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                <Shield className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Admin access required</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Your account doesn’t have admin permissions.
+              </p>
+            </div>
+
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Signed in as: <span className="font-medium text-slate-900 dark:text-white">{user?.email}</span>
+            </div>
+
+            <div className="space-y-3">
+              <Button asChild className="w-full h-12 text-base">
+                <a href="mailto:support@hiddystays.com?subject=Admin%20access%20request">Request admin access</a>
+              </Button>
+              <Button variant="outline" asChild className="w-full h-12 text-base">
+                <Link href="/">Go back home</Link>
+              </Button>
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -113,214 +121,43 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto max-w-6xl px-4 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">
-              Admin Dashboard
-            </h1>
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <BackButton to="/" className="mb-2 -ml-2">
+              Back to Home
+            </BackButton>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Admin</h1>
+                <p className="text-sm text-muted-foreground">Platform management</p>
+              </div>
+            </div>
           </div>
-          <p className="text-muted-foreground">
-            Platform management and analytics
-          </p>
         </div>
-
-        {/* Stats Grid - Only show on overview tab */}
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <Users className="w-8 h-8 text-blue-600" />
-                <Badge>Total</Badge>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground">
-                {stats.users?.total || 0}
-              </h3>
-              <p className="text-sm text-muted-foreground">Total Users</p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Verified: {stats.users?.verified || 0} | Hosts:{" "}
-                {stats.users?.byRole?.host || 0}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <Home className="w-8 h-8 text-green-600" />
-                <Badge variant="secondary">Active</Badge>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground">
-                {stats.properties?.active || 0}
-              </h3>
-              <p className="text-sm text-muted-foreground">Active Properties</p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Total: {stats.properties?.total || 0} | Inactive:{" "}
-                {stats.properties?.inactive || 0}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <Calendar className="w-8 h-8 text-purple-600" />
-                <Badge variant="outline">All Time</Badge>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground">
-                {stats.bookings?.total || 0}
-              </h3>
-              <p className="text-sm text-muted-foreground">Total Bookings</p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Confirmed: {stats.bookings?.byStatus?.confirmed || 0} | Pending:{" "}
-                {stats.bookings?.byStatus?.pending || 0}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <DollarSign className="w-8 h-8 text-orange-600" />
-                <Badge variant="destructive">Revenue</Badge>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground">
-                ${(stats.revenue?.total || 0).toLocaleString()}
-              </h3>
-              <p className="text-sm text-muted-foreground">Total Revenue</p>
-              <div className="mt-2 text-xs text-muted-foreground">
-                This Month: ${(stats.revenue?.thisMonth || 0).toLocaleString()}
-              </div>
-            </Card>
-          </div>
-        )}
 
         {/* Admin Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
+          <div className="flex items-center justify-start">
+            <TabsList className="w-full sm:w-auto grid grid-cols-3">
+              <TabsTrigger value="users" className="flex items-center gap-2">
               <UserCheck className="w-4 h-4" />
               Users
-            </TabsTrigger>
-            <TabsTrigger value="properties" className="flex items-center gap-2">
+              </TabsTrigger>
+              <TabsTrigger value="properties" className="flex items-center gap-2">
               <Building className="w-4 h-4" />
               Properties
-            </TabsTrigger>
-            <TabsTrigger value="bookings" className="flex items-center gap-2">
+              </TabsTrigger>
+              <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Bookings
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setActiveTab("users")}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Users className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    User Management
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Manage users, roles, and permissions
-                </p>
-                <Button variant="outline" className="w-full">
-                  Manage Users
-                </Button>
-              </Card>
-
-              <Card
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setActiveTab("properties")}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Home className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    Property Management
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Review and manage property listings
-                </p>
-                <Button variant="outline" className="w-full">
-                  Manage Properties
-                </Button>
-              </Card>
-
-              <Card
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setActiveTab("bookings")}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Calendar className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    Booking Management
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  View and manage all bookings
-                </p>
-                <Button variant="outline" className="w-full">
-                  Manage Bookings
-                </Button>
-              </Card>
-
-              <Card
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setActiveTab("analytics")}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <TrendingUp className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    Platform Analytics
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  View comprehensive platform analytics
-                </p>
-                <Button variant="outline" className="w-full">
-                  View Analytics
-                </Button>
-              </Card>
-
-              <Card className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Mail className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    Email System
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Manage email templates and campaigns
-                </p>
-                <Button variant="outline" className="w-full" disabled>
-                  Coming Soon
-                </Button>
-              </Card>
-
-              <Card className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Settings className="w-6 h-6 text-primary" />
-                  <h3 className="font-semibold text-foreground">
-                    Platform Settings
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Configure platform settings and fees
-                </p>
-                <Button variant="outline" className="w-full" disabled>
-                  Coming Soon
-                </Button>
-              </Card>
-            </div>
-          </TabsContent>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="users" className="mt-6">
             <AdminUserManagement />
@@ -332,10 +169,6 @@ export default function AdminDashboard() {
 
           <TabsContent value="bookings" className="mt-6">
             <AdminBookingManagement />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-6">
-            <PlatformAnalytics />
           </TabsContent>
         </Tabs>
       </div>

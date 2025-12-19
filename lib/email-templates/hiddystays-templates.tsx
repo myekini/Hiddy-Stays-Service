@@ -16,6 +16,7 @@ import {
   Column,
 } from "@react-email/components";
 import * as React from "react";
+import { getAppBaseUrl } from "../app-url";
 
 // HiddyStays Brand Colors
 const brandColors = {
@@ -162,10 +163,7 @@ export const BookingConfirmationTemplate = ({
   hostInstructions,
   googleMapsLink,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate
@@ -610,10 +608,7 @@ export const HostNotificationTemplate = ({
   guestPhone,
   specialRequests,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate
@@ -1161,10 +1156,7 @@ export const PaymentReceiptTemplate = ({
   bookingId,
   receiptUrl,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate
@@ -1509,12 +1501,9 @@ export const PaymentReceiptTemplate = ({
 // Template 4: Welcome Email (Host)
 export const HostWelcomeTemplate = ({
   hostName,
-  hostEmail,
+  hostEmail: _hostEmail,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate
@@ -1969,10 +1958,7 @@ export const CheckInReminderTemplate = ({
   parkingInstructions,
   entryInstructions,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate
@@ -2372,7 +2358,7 @@ export const CheckInReminderTemplate = ({
 // Template 6: Booking Request (Before Payment)
 export const BookingRequestTemplate = ({
   guestName,
-  guestEmail,
+  guestEmail: _guestEmail,
   propertyName,
   checkInDate,
   checkOutDate,
@@ -2381,10 +2367,7 @@ export const BookingRequestTemplate = ({
   bookingId,
   paymentUrl,
 }: EmailTemplateProps) => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_URL ||
-    "https://hiddystays.com";
+  const baseUrl = getAppBaseUrl();
 
   return (
     <HiddyStaysBaseTemplate

@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 // Lightweight in-memory rate limiter for auth routes (per IP)
 const __authRate = new Map<string, { count: number; reset: number }>();
@@ -16,10 +15,11 @@ function allowAuthRequest(ip: string, max = 60, windowMs = 5 * 60 * 1000) {
   return true;
 }
 
-// Profile cache: userId -> { role, is_host, timestamp }
+// Profile cache: userId -> { role, is_host, is_suspended, timestamp }
 interface CachedProfile {
   role: string;
   is_host: boolean;
+  is_suspended: boolean;
   timestamp: number;
 }
 
@@ -39,10 +39,16 @@ function getCachedProfile(userId: string): CachedProfile | null {
   return cached;
 }
 
-function setCachedProfile(userId: string, role: string, is_host: boolean): void {
+function setCachedProfile(
+  userId: string,
+  role: string,
+  is_host: boolean,
+  is_suspended: boolean
+): void {
   __profileCache.set(userId, {
     role,
     is_host,
+    is_suspended,
     timestamp: Date.now(),
   });
 }
@@ -70,15 +76,38 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
   // Skip auth check for API routes and static files (performance optimization)
-  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
+  if (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/assets") ||
+    pathname.startsWith("/icons") ||
+    pathname.startsWith("/images") ||
+    /\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|xml|json)$/i.test(pathname)
+  ) {
     return res;
   }
 
+  const isAuthPath = pathname.startsWith("/auth");
+  const isAuthSubpageAllowedWhenAuthed =
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/auth/reset-password") ||
+    pathname.startsWith("/auth/accept-invite");
+
   // Public pages that don't require authentication
   // Note: /booking paths must be accessible for payment flows to work
-  const publicPaths = ["/", "/properties", "/property", "/booking"];
-  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
-  const isAuthPath = pathname.startsWith("/auth");
+  const isPublicPath =
+    pathname === "/properties" ||
+    pathname.startsWith("/properties/") ||
+    pathname.startsWith("/property/") ||
+    pathname.startsWith("/booking") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/host-dashboard") ||
+    pathname.startsWith("/about") ||
+    pathname.startsWith("/contact") ||
+    pathname.startsWith("/help") ||
+    pathname === "/manifest.json" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml";
 
   // Basic rate limiting for auth-related pages to mitigate abuse
   if (isAuthPath) {
@@ -155,14 +184,122 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
+  // Default route behavior
+  // - Unauthenticated: send to signup
+  // - Authenticated: send to role-appropriate landing
+  if (pathname === "/") {
+    if (!session) return res;
+
+    try {
+      let profile = getCachedProfile(session.user.id);
+
+      if (!profile) {
+        const { data: dbProfile } = await supabase
+          .from("profiles")
+          .select("role, is_host, is_suspended")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (dbProfile) {
+          const isSuspended = Boolean(
+            (dbProfile as { is_suspended?: boolean | null })?.is_suspended
+          );
+          setCachedProfile(
+            session.user.id,
+            dbProfile.role,
+            dbProfile.is_host,
+            isSuspended
+          );
+          profile = {
+            role: dbProfile.role,
+            is_host: dbProfile.is_host,
+            is_suspended: isSuspended,
+            timestamp: Date.now(),
+          };
+        }
+      }
+
+      if (profile?.is_suspended) {
+        return NextResponse.redirect(new URL("/auth?error=account_suspended", req.url));
+      }
+
+      if (profile?.role === "admin" || profile?.role === "super_admin") {
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }
+
+      if (
+        profile?.role === "host" ||
+        profile?.role === "admin" ||
+        profile?.role === "super_admin" ||
+        profile?.is_host
+      ) {
+        return NextResponse.redirect(new URL("/host-dashboard", req.url));
+      }
+
+      return NextResponse.redirect(new URL("/properties", req.url));
+    } catch (error) {
+      console.error("Error determining default landing route:", error);
+      return NextResponse.redirect(new URL("/properties", req.url));
+    }
+  }
+
   // If accessing auth page and already authenticated, redirect to home
-  if (session && isAuthPath) {
+  if (session && isAuthPath && !isAuthSubpageAllowedWhenAuthed) {
+    const next = req.nextUrl.searchParams.get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      return NextResponse.redirect(new URL(next, req.url));
+    }
+
     return NextResponse.redirect(new URL("/", req.url));
   }
 
   // If accessing protected page without authentication, redirect to auth
   if (!session && !isPublicPath && !isAuthPath) {
-    return NextResponse.redirect(new URL("/auth", req.url));
+    const next = `${pathname}${req.nextUrl.search}`;
+    return NextResponse.redirect(
+      new URL(`/auth?mode=signin&next=${encodeURIComponent(next)}`, req.url)
+    );
+  }
+
+  // If authenticated but suspended, block access to protected routes
+  if (session && !isPublicPath && !isAuthPath) {
+    try {
+      let profile = getCachedProfile(session.user.id);
+
+      if (!profile) {
+        const { data: dbProfile } = await supabase
+          .from("profiles")
+          .select("role, is_host, is_suspended")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (dbProfile) {
+          const isSuspended = Boolean(
+            (dbProfile as { is_suspended?: boolean | null })?.is_suspended
+          );
+          setCachedProfile(
+            session.user.id,
+            dbProfile.role,
+            dbProfile.is_host,
+            isSuspended
+          );
+          profile = {
+            role: dbProfile.role,
+            is_host: dbProfile.is_host,
+            is_suspended: isSuspended,
+            timestamp: Date.now(),
+          };
+        }
+      }
+
+      if (profile?.is_suspended) {
+        return NextResponse.redirect(
+          new URL("/auth?error=account_suspended", req.url)
+        );
+      }
+    } catch (error) {
+      console.error("Error checking account suspension:", error);
+    }
   }
 
   // Role-based access control for admin and host routes
@@ -175,7 +312,7 @@ export async function middleware(req: NextRequest) {
         // Cache miss - fetch from database
         const { data: dbProfile, error } = await supabase
           .from("profiles")
-          .select("role, is_host")
+          .select("role, is_host, is_suspended")
           .eq("user_id", session.user.id)
           .single();
 
@@ -195,7 +332,7 @@ export async function middleware(req: NextRequest) {
           // Fetch the newly created profile
           const { data: newProfile, error: fetchError } = await supabase
             .from("profiles")
-            .select("role, is_host")
+            .select("role, is_host, is_suspended")
             .eq("user_id", session.user.id)
             .single();
 
@@ -205,17 +342,47 @@ export async function middleware(req: NextRequest) {
           }
 
           // Cache the newly created profile
-          setCachedProfile(session.user.id, newProfile.role, newProfile.is_host);
-          profile = { role: newProfile.role, is_host: newProfile.is_host, timestamp: Date.now() };
+          const isSuspended = Boolean(
+            (newProfile as { is_suspended?: boolean | null })?.is_suspended
+          );
+          setCachedProfile(
+            session.user.id,
+            newProfile.role,
+            newProfile.is_host,
+            isSuspended
+          );
+          profile = {
+            role: newProfile.role,
+            is_host: newProfile.is_host,
+            is_suspended: isSuspended,
+            timestamp: Date.now(),
+          };
         } else {
           // Cache the fetched profile
-          setCachedProfile(session.user.id, dbProfile.role, dbProfile.is_host);
-          profile = { role: dbProfile.role, is_host: dbProfile.is_host, timestamp: Date.now() };
+          const isSuspended = Boolean(
+            (dbProfile as { is_suspended?: boolean | null })?.is_suspended
+          );
+          setCachedProfile(
+            session.user.id,
+            dbProfile.role,
+            dbProfile.is_host,
+            isSuspended
+          );
+          profile = {
+            role: dbProfile.role,
+            is_host: dbProfile.is_host,
+            is_suspended: isSuspended,
+            timestamp: Date.now(),
+          };
         }
       }
 
+      if (profile?.is_suspended) {
+        return NextResponse.redirect(new URL("/auth?error=account_suspended", req.url));
+      }
+
       // Check admin access
-      if (isAdminPath && profile.role !== "admin") {
+      if (isAdminPath && profile.role !== "admin" && profile.role !== "super_admin") {
         console.warn(
           `Unauthorized admin access attempt by user ${session.user.email} (role: ${profile.role})`
         );
@@ -223,7 +390,12 @@ export async function middleware(req: NextRequest) {
       }
 
       // Check host access (hosts or admins can access)
-      if (isHostPath && profile.role !== "host" && profile.role !== "admin") {
+      if (
+        isHostPath &&
+        profile.role !== "host" &&
+        profile.role !== "admin" &&
+        profile.role !== "super_admin"
+      ) {
         console.warn(
           `Unauthorized host dashboard access attempt by user ${session.user.email} (role: ${profile.role})`
         );
@@ -247,6 +419,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|assets/|icons/).*)",
   ],
 };

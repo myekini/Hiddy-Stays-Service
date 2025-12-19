@@ -137,7 +137,7 @@ export async function GET(
         sessionId: booking.stripe_session_id,
         paymentMethod: booking.payment_method,
         totalAmount: booking.total_amount,
-        currency: booking.currency || "USD",
+        currency: booking.currency || "CAD",
         propertyTitle: property?.title,
         checkInDate: booking.check_in_date,
         checkOutDate: booking.check_out_date,

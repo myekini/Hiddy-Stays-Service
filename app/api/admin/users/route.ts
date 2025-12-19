@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    "Missing Supabase environment variables for admin API. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set."
+  );
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Simple in-memory rate limiter (per IP)
 const __rateLimit = new Map<string, { count: number; reset: number }>();
@@ -66,7 +74,7 @@ export async function GET(request: NextRequest) {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (profile?.role !== "admin" && profile?.role !== "super_admin") {
       return NextResponse.json(
         { error: "Forbidden", message: "Admin access required" },
         { status: 403 }
@@ -90,6 +98,7 @@ export async function GET(request: NextRequest) {
         role,
         is_host,
         is_verified,
+        is_suspended,
         phone,
         bio,
         location,
@@ -126,7 +135,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Get auth users data
-    const userIds = profiles?.map(p => p.user_id) || [];
     const { data: authData } = await supabase.auth.admin.listUsers();
 
     // Merge auth data with profiles
@@ -204,7 +212,7 @@ export async function PUT(request: NextRequest) {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (profile?.role !== "admin" && profile?.role !== "super_admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -212,6 +220,7 @@ export async function PUT(request: NextRequest) {
     const allowedFields = [
       "role",
       "is_verified",
+      "is_suspended",
       "is_host",
       "first_name",
       "last_name",
@@ -232,6 +241,68 @@ export async function PUT(request: NextRequest) {
       sanitizedUpdates.is_host = true;
     }
 
+    if (sanitizedUpdates.role === "super_admin") {
+      sanitizedUpdates.is_host = true;
+    }
+
+    if (sanitizedUpdates.role === "super_admin" && profile?.role !== "super_admin") {
+      return NextResponse.json(
+        { error: "Only super_admin can assign super_admin" },
+        { status: 403 }
+      );
+    }
+
+    // Keep auth.users metadata in sync when updating role/host/verification
+    const shouldUpdateAuthMetadata =
+      sanitizedUpdates.role !== undefined ||
+      sanitizedUpdates.is_host !== undefined ||
+      sanitizedUpdates.is_verified !== undefined;
+
+    if (shouldUpdateAuthMetadata) {
+      const { data: authUserData, error: authUserError } =
+        await supabase.auth.admin.getUserById(userId);
+
+      if (authUserError || !authUserData?.user) {
+        console.error("Error fetching auth user for metadata sync:", authUserError);
+        return NextResponse.json(
+          {
+            error: "Failed to update user",
+            details: "Could not load auth user for metadata sync",
+          },
+          { status: 500 }
+        );
+      }
+
+      const existingMetadata = authUserData.user.user_metadata || {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        ...(sanitizedUpdates.role !== undefined
+          ? { role: sanitizedUpdates.role }
+          : {}),
+        ...(sanitizedUpdates.is_host !== undefined
+          ? { is_host: sanitizedUpdates.is_host }
+          : {}),
+        ...(sanitizedUpdates.is_verified !== undefined
+          ? { is_verified: sanitizedUpdates.is_verified }
+          : {}),
+      };
+
+      const { error: updateAuthError } = await supabase.auth.admin.updateUserById(
+        userId,
+        {
+          user_metadata: updatedMetadata,
+        }
+      );
+
+      if (updateAuthError) {
+        console.error("Error updating auth user metadata:", updateAuthError);
+        return NextResponse.json(
+          { error: "Failed to update user", details: updateAuthError.message },
+          { status: 500 }
+        );
+      }
+    }
+
     // Update profile
     const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
@@ -249,6 +320,13 @@ export async function PUT(request: NextRequest) {
         { error: "Failed to update user", details: updateError.message },
         { status: 500 }
       );
+    }
+
+    // Invalidate middleware cache for this user (non-blocking)
+    try {
+      await supabase.rpc("invalidate_profile_cache", { target_user_id: userId });
+    } catch {
+      // Non-blocking
     }
 
     return NextResponse.json({
@@ -300,7 +378,7 @@ export async function POST(request: NextRequest) {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (profile?.role !== "admin" && profile?.role !== "super_admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -308,7 +386,7 @@ export async function POST(request: NextRequest) {
     const { email, password, role } = body as {
       email?: string;
       password?: string;
-      role?: "user" | "host" | "admin";
+      role?: "user" | "host" | "admin" | "super_admin";
     };
 
     if (!email || !password) {
@@ -318,8 +396,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const finalRole: "user" | "host" | "admin" = role || "user";
-    const isHost = finalRole === "host" || finalRole === "admin";
+    if (role === "super_admin" && profile?.role !== "super_admin") {
+      return NextResponse.json(
+        { error: "Only super_admin can create super_admin" },
+        { status: 403 }
+      );
+    }
+
+    const finalRole: "user" | "host" | "admin" | "super_admin" = role || "user";
+    const isHost =
+      finalRole === "host" || finalRole === "admin" || finalRole === "super_admin";
 
     const { data: created, error: createError } =
       await supabase.auth.admin.createUser({
@@ -340,21 +426,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure profile exists (trigger can fail in some environments)
+    try {
+      await supabase.rpc("create_missing_profile", { user_uuid: created.user.id });
+    } catch {
+      // Non-blocking
+    }
+
     // Ensure profile matches (profile row might be created by trigger; update is idempotent)
     const { data: updatedProfile, error: profileUpdateError } = await supabase
       .from("profiles")
-      .update({
-        role: finalRole,
-        is_host: isHost,
-        is_verified: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", created.user.id)
+      .upsert(
+        {
+          user_id: created.user.id,
+          role: finalRole,
+          is_host: isHost,
+          is_verified: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      )
       .select()
       .single();
 
     if (profileUpdateError) {
       console.error("Failed to update profile after user creation:", profileUpdateError);
+    }
+
+    // Invalidate middleware cache for created user (non-blocking)
+    try {
+      await supabase.rpc("invalidate_profile_cache", { target_user_id: created.user.id });
+    } catch {
+      // Non-blocking
     }
 
     return NextResponse.json({
@@ -413,7 +516,7 @@ export async function DELETE(request: NextRequest) {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (profile?.role !== "admin" && profile?.role !== "super_admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

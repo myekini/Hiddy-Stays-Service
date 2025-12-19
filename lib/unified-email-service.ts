@@ -3,6 +3,10 @@ import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { EmailTemplates } from "./email-templates";
 import { HiddyStaysEmailTemplates } from "./email-templates/hiddystays-templates";
+import BookingConfirmation from "@/emails/BookingConfirmation";
+import HostBookingNotification from "@/emails/HostBookingNotification";
+import BookingCancellation from "@/emails/BookingCancellation";
+import GenericNotification from "@/emails/GenericNotification";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -91,6 +95,24 @@ export interface WelcomeEmailData {
   name: string;
   email: string;
   role?: "host" | "guest";
+}
+
+export interface CancellationNotificationData {
+  recipientEmail: string;
+  recipientName: string;
+  propertyName: string;
+  checkInDate: string;
+  bookingId: string;
+  cancellationReason?: string;
+  refundAmount?: number;
+}
+
+export interface NotificationEmailData {
+  to: string;
+  subject: string;
+  message: string;
+  actionUrl?: string;
+  actionText?: string;
 }
 
 class UnifiedEmailService {
@@ -218,6 +240,37 @@ class UnifiedEmailService {
     return result;
   }
 
+  async sendCancellationNotification(
+    data: CancellationNotificationData
+  ): Promise<EmailResult> {
+    const template = BookingCancellation({
+      guestName: data.recipientName,
+      propertyName: data.propertyName,
+      bookingId: data.bookingId,
+      checkInDate: data.checkInDate,
+      refundAmount: data.refundAmount,
+      cancellationReason: data.cancellationReason,
+    });
+
+    return this.sendEmail(
+      data.recipientEmail,
+      `Booking Cancelled - ${data.propertyName}`,
+      template,
+      "HiddyStays Cancellations <cancellations@hiddystays.com>"
+    );
+  }
+
+  async sendNotification(data: NotificationEmailData): Promise<EmailResult> {
+    const template = GenericNotification({
+      subject: data.subject,
+      message: data.message,
+      actionUrl: data.actionUrl,
+      actionText: data.actionText,
+    });
+
+    return this.sendEmail(data.to, data.subject, template);
+  }
+
   /**
    * Send booking request email (before payment)
    */
@@ -261,12 +314,11 @@ class UnifiedEmailService {
    * Send booking confirmation to guest (after payment)
    */
   async sendBookingConfirmation(data: BookingEmailData): Promise<EmailResult> {
-    const template = HiddyStaysEmailTemplates.BookingConfirmationTemplate({
+    const template = BookingConfirmation({
       guestName: data.guestName,
       propertyName: data.propertyTitle,
-      propertyImage: data.propertyImage,
-      hostName: data.hostName,
-      hostAvatar: data.hostAvatar,
+      propertyImage: data.propertyImage || "",
+      propertyAddress: data.propertyAddress || data.propertyLocation,
       checkInDate: data.checkInDate,
       checkInTime: data.checkInTime || "3:00 PM",
       checkOutDate: data.checkOutDate,
@@ -274,9 +326,10 @@ class UnifiedEmailService {
       guests: data.guests,
       totalAmount: data.totalAmount,
       bookingId: data.bookingId,
-      propertyAddress: data.propertyAddress || data.propertyLocation,
-      hostInstructions: data.hostInstructions,
-      googleMapsLink: data.googleMapsLink,
+      hostName: data.hostName,
+      hostEmail: data.hostEmail,
+      specialInstructions: data.hostInstructions,
+      googleMapsUrl: data.googleMapsLink || "",
     });
 
     const result = await this.sendEmail(
@@ -306,21 +359,21 @@ class UnifiedEmailService {
    * Send booking notification to host
    */
   async sendHostNotification(data: BookingEmailData): Promise<EmailResult> {
-    const template = HiddyStaysEmailTemplates.HostNotificationTemplate({
+    const template = HostBookingNotification({
       hostName: data.hostName,
-      guestName: data.guestName,
       propertyName: data.propertyTitle,
+      guestName: data.guestName,
+      guestEmail: data.guestEmail,
+      guestPhone: data.guestPhone,
       checkInDate: data.checkInDate,
       checkInTime: data.checkInTime || "3:00 PM",
       checkOutDate: data.checkOutDate,
       checkOutTime: data.checkOutTime || "11:00 AM",
       guests: data.guests,
-      totalAmount: data.totalAmount,
+      bookingAmount: data.totalAmount,
       stripeFee: data.stripeFee || 0,
       netAmount: data.netAmount || data.totalAmount,
       bookingId: data.bookingId,
-      guestEmail: data.guestEmail,
-      guestPhone: data.guestPhone,
       specialRequests: data.specialRequests,
     });
 
@@ -643,4 +696,5 @@ class UnifiedEmailService {
 
 // Export singleton instance
 export const unifiedEmailService = UnifiedEmailService.getInstance();
+export const emailService = unifiedEmailService;
 export default unifiedEmailService;

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  X,
-  Calendar,
-  Users,
-  CreditCard,
-  CheckCircle,
   AlertCircle,
+  Calendar,
+  Check,
+  CheckCircle,
   Clock,
-  Shield,
+  CreditCard,
+  Home,
+  Mail,
   MapPin,
+  Shield,
   Star,
+  User,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,21 @@ interface BookingData {
   subtotal: number;
 }
 
+interface BookingCreatePayload {
+  propertyId: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  totalAmount: number;
+  guestInfo: {
+    userId?: string;
+    name: string;
+    email: string;
+    phone: string;
+    specialRequests: string;
+  };
+}
+
 interface AvailabilityData {
   available: boolean;
   conflicts: Array<{
@@ -88,7 +106,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
     guests: 1,
     totalNights: 0,
     totalAmount: 0,
-    cleaningFee: property.cleaning_fee || 50,
+    cleaningFee: property.cleaning_fee || 100,
     serviceFee: 0,
     subtotal: 0,
   });
@@ -135,9 +153,12 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
   };
 
   const getProgressPercentage = () => {
-    const currentIndex = steps.findIndex((s) => s.id === step);
-    return ((currentIndex + 1) / steps.length) * 100;
+    const currentStep = steps.findIndex((s) => s.id === step);
+    return ((currentStep + 1) / steps.length) * 100;
   };
+
+  // Get current step index for progress tracking
+  const currentStepIndex = steps.findIndex((s) => s.id === step);
 
   // Load user profile on mount
   useEffect(() => {
@@ -281,7 +302,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
   ) => {
     const nights = differenceInDays(new Date(checkOut), new Date(checkIn));
     const subtotal = property.price_per_night * nights;
-    const cleaningFee = property.cleaning_fee || 50;
+    const cleaningFee = property.cleaning_fee || 100;
     const serviceFeePercentage = property.service_fee_percentage || 12;
     const serviceFee = Math.round(subtotal * (serviceFeePercentage / 100));
     const total = subtotal + cleaningFee + serviceFee;
@@ -380,18 +401,26 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
 
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        toast({
+          title: "Continuing as guest",
+          description: "You can complete this reservation without signing in.",
+          variant: "info",
+        });
+      }
 
       // Prepare booking data
-      const bookingPayload = {
+      const bookingPayload: BookingCreatePayload = {
         propertyId: property.id,
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
         guests: bookingData.guests,
         totalAmount: bookingData.totalAmount,
         guestInfo: {
-          userId: user?.id || null,
+          userId: session?.user?.id,
           name: guestInfo.name.trim(),
           email: guestInfo.email.trim(),
           phone: guestInfo.phone.trim(),
@@ -409,14 +438,32 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
       });
 
       if (!bookingResponse.ok) {
-        const errorData = await bookingResponse.json();
+        const errorData = await bookingResponse.json().catch(() => ({} as any));
+
+        if (bookingResponse.status === 401 || bookingResponse.status === 403) {
+          toast({
+            title: "Sign in required",
+            description: "Please sign in to complete your reservation.",
+            variant: "destructive",
+          });
+          const next = `${window.location.pathname}${window.location.search}`;
+          onClose();
+          router.push(`/auth?mode=signin&next=${encodeURIComponent(next)}`);
+          return;
+        }
+
+        const validationErrors: string[] = Array.isArray(errorData?.details)
+          ? (errorData.details as string[])
+          : Array.isArray(errorData?.details?.validationErrors)
+            ? (errorData.details.validationErrors as string[])
+            : [];
         
         // Handle validation errors - show specific field errors
-        if (errorData.details && Array.isArray(errorData.details)) {
+        if (validationErrors.length > 0) {
           const fieldErrors: Record<string, string> = {};
           
           // Map validation errors to form fields
-          errorData.details.forEach((error: string) => {
+          validationErrors.forEach((error: string) => {
             if (error.toLowerCase().includes("name")) {
               fieldErrors.name = error;
             } else if (error.toLowerCase().includes("email")) {
@@ -442,7 +489,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
           // Show toast with all validation errors
           toast({
             title: "Validation Error",
-            description: errorData.details.join(". "),
+            description: validationErrors.join(". "),
             variant: "destructive",
           });
           
@@ -468,12 +515,20 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
       }
 
       const bookingResult = await bookingResponse.json();
-      const { bookingId } = bookingResult;
 
-      // Show success message for booking creation
+      if (!bookingResult.success) {
+        throw new Error(bookingResult.message || "Failed to create booking");
+      }
+
+      const bookingId = bookingResult.bookingId;
+      const accessToken =
+        typeof bookingResult.accessToken === "string" ? bookingResult.accessToken : "";
+
       toast({
-        title: "Booking Created! 🎉",
-        description: "Your booking request has been submitted. Redirecting to payment...",
+        title: "Booking Created!",
+        description:
+          "Your booking has been created. Proceeding to payment...",
+        variant: "success",
       });
 
       if (onBookingConfirm) {
@@ -481,7 +536,11 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
       }
 
       onClose();
-      router.push(`/booking/${bookingId}/pay`);
+      router.push(
+        accessToken
+          ? `/booking/${bookingId}/pay?token=${encodeURIComponent(accessToken)}`
+          : `/booking/${bookingId}/pay`
+      );
     } catch (error: any) {
       console.error("Error creating booking:", error);
       toast({
@@ -574,88 +633,74 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
 
         {/* Scrollable Content */}
         <div className="overflow-y-auto max-h-[calc(90vh-240px)]">
-          {/* Sleeker Progress Tracking */}
-          <div className="p-6 border-b border-border/50 bg-gradient-to-r from-gray-50/50 to-blue-50/30 dark:from-gray-900/20 dark:to-blue-900/10">
-          {/* Progress Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Booking Progress</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {steps.find(s => s.id === step)?.description}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                Step {steps.findIndex(s => s.id === step) + 1} of {steps.length}
+          {/* Modern Progress Tracking */}
+          <div className="p-6 border-b border-border/50 bg-white dark:bg-slate-900">
+            <div className="max-w-3xl mx-auto">
+              {/* Progress Steps */}
+              <div className="relative">
+                {/* Progress Line */}
+                <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-100 dark:bg-slate-700 -translate-y-1/2">
+                  <div 
+                    className="h-full bg-brand-500 transition-all duration-500 ease-out rounded-full"
+                    style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+                  />
+                </div>
+                
+                {/* Steps */}
+                <div className="relative flex justify-between">
+                  {steps.slice(0, -1).map((stepItem, index) => {
+                    const isCompleted = index < currentStepIndex;
+                    const isCurrent = index === currentStepIndex;
+                    const isUpcoming = index > currentStepIndex;
+                    
+                    return (
+                      <div key={stepItem.id} className="flex flex-col items-center z-10">
+                        {/* Step Circle */}
+                        <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+                          isCompleted 
+                            ? 'bg-brand-500 border-brand-500 text-white' 
+                            : isCurrent 
+                              ? 'bg-white border-brand-500 text-brand-500 shadow-lg shadow-brand-500/20'
+                              : 'bg-white border-gray-300 dark:border-slate-600 text-gray-400 dark:text-slate-500'
+                        }`}>
+                          {isCompleted ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <span className={`text-sm font-medium ${isCurrent ? 'text-brand-600 dark:text-brand-400' : ''}`}>
+                              {index + 1}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Step Label */}
+                        <div className={`mt-2 text-center px-1 ${isCurrent ? 'min-w-[80px]' : 'min-w-[60px]'}`}>
+                          <div className={`text-xs font-medium transition-colors ${
+                            isCurrent 
+                              ? 'text-brand-600 dark:text-brand-400 font-semibold' 
+                              : isCompleted 
+                                ? 'text-gray-600 dark:text-gray-300'
+                                : 'text-gray-400 dark:text-slate-500'
+                          }`}>
+                            {stepItem.title}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Current Step Description */}
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  {steps[currentStepIndex]?.description}
+                </p>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Step {currentStepIndex + 1} of {steps.length - 1}
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Modern Progress Bar */}
-          <div className="relative mb-6">
-            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-brand-500 to-brand-600 rounded-full transition-all duration-700 ease-out"
-                style={{ width: `${getProgressPercentage()}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Minimal Step Indicators */}
-          <div className="flex items-center justify-between relative">
-            {steps.map((stepItem, index) => {
-              const currentStepIndex = steps.findIndex((s) => s.id === step);
-              const isCompleted = index < currentStepIndex;
-              const isCurrent = stepItem.id === step;
-              const isUpcoming = index > currentStepIndex;
-
-              return (
-                <div key={stepItem.id} className="flex flex-col items-center relative z-10">
-                  {/* Step Dot */}
-                  <div
-                    className={`w-3 h-3 rounded-full border-2 transition-all duration-300 ${
-                      isCurrent
-                        ? "border-brand-500 bg-brand-500 scale-125 shadow-lg shadow-brand-500/30"
-                        : isCompleted
-                          ? "border-brand-500 bg-brand-500"
-                          : "border-gray-300 dark:border-gray-600 bg-background"
-                    }`}
-                  >
-                    {/* Active indicator */}
-                    {isCurrent && (
-                      <div className="absolute inset-0 rounded-full border-2 border-brand-400 animate-ping" />
-                    )}
-                  </div>
-                  
-                  {/* Step Label - Only show for current step on mobile */}
-                  <div className="mt-2 text-center hidden sm:block">
-                    <div className={`text-xs font-medium transition-colors ${
-                      isCurrent 
-                        ? "text-brand-600 dark:text-brand-400" 
-                        : isCompleted 
-                          ? "text-gray-600 dark:text-gray-400"
-                          : "text-gray-400 dark:text-gray-500"
-                    }`}>
-                      {stepItem.title}
-                    </div>
-                  </div>
-                  
-                  {/* Mobile - only show current step title */}
-                  {isCurrent && (
-                    <div className="mt-2 text-center sm:hidden">
-                      <div className="text-xs font-medium text-brand-600 dark:text-brand-400">
-                        {stepItem.title}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Connecting Line */}
-            <div className="absolute top-1.5 left-0 right-0 h-px bg-gray-200 dark:bg-gray-700 -z-10" />
-          </div>
-        </div>
 
         {/* Steps */}
         <div className="p-6">

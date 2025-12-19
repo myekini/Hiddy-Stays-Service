@@ -32,7 +32,7 @@ export interface AuthUser {
   avatarUrl?: string;
   emailVerified: boolean;
   phoneVerified: boolean;
-  role: "user" | "host" | "admin";
+  role: "user" | "host" | "admin" | "super_admin";
   provider: string;
   createdAt: Date;
   lastSignInAt: Date;
@@ -84,10 +84,13 @@ export class AuthUtils {
    * Determine user role based on metadata and email
    * NOTE: This reads from metadata - for server-side checks, query profiles table directly
    */
-  static determineUserRole(user: User): "user" | "host" | "admin" {
+  static determineUserRole(user: User): "user" | "host" | "admin" | "super_admin" {
     const metadata = user.user_metadata || {};
 
     // Only trust explicit role flags from metadata
+    if ((metadata as any).role === "super_admin") {
+      return "super_admin";
+    }
     if (metadata.role === "admin") {
       return "admin";
     }
@@ -107,7 +110,7 @@ export class AuthUtils {
     supabase: any,
     userId: string
   ): Promise<{
-    role: "user" | "host" | "admin";
+    role: "user" | "host" | "admin" | "super_admin";
     isHost: boolean;
     error: Error | null;
   }> {
@@ -135,7 +138,7 @@ export class AuthUtils {
       }
 
       return {
-        role: profile.role as "user" | "host" | "admin",
+        role: profile.role as "user" | "host" | "admin" | "super_admin",
         isHost: profile.is_host,
         error: null,
       };
@@ -159,6 +162,7 @@ export class AuthUtils {
       user: 1,
       host: 2,
       admin: 3,
+      super_admin: 4,
     };
 
     return roleHierarchy[user.role] >= roleHierarchy[requiredRole];
@@ -168,13 +172,14 @@ export class AuthUtils {
    * Check if role meets requirement (static version)
    */
   static checkRolePermission(
-    userRole: "user" | "host" | "admin",
+    userRole: "user" | "host" | "admin" | "super_admin",
     requiredRole: "user" | "host" | "admin"
   ): boolean {
     const roleHierarchy = {
       user: 1,
       host: 2,
       admin: 3,
+      super_admin: 4,
     };
 
     return roleHierarchy[userRole] >= roleHierarchy[requiredRole];

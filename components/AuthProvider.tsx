@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AuthUtils, { AuthUser } from "@/lib/auth";
+import { getAppBaseUrl } from "@/lib/app-url";
 import SessionManager from "@/lib/session";
 import AuthNotifications from "@/lib/auth-notifications";
 
@@ -45,6 +46,119 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const isDev = process.env.NODE_ENV !== "production";
 
+  const roleCacheRef = useRef<{
+    userId: string;
+    role: "user" | "host" | "admin" | "super_admin";
+    is_suspended: boolean;
+    ts: number;
+  } | null>(null);
+  const ROLE_CACHE_TTL_MS = 60 * 1000;
+
+  const primeRoleCache = useCallback(
+    async (userId: string) => {
+      try {
+        const cached = roleCacheRef.current;
+        if (cached && cached.userId === userId && Date.now() - cached.ts < ROLE_CACHE_TTL_MS) {
+          return cached;
+        }
+
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role, is_suspended")
+          .eq("user_id", userId)
+          .single();
+
+        if (error || !profile) {
+          return null;
+        }
+
+        const role = (profile as any)?.role as
+          | "user"
+          | "host"
+          | "admin"
+          | "super_admin"
+          | undefined;
+
+        if (!role || !["user", "host", "admin", "super_admin"].includes(role)) {
+          return null;
+        }
+
+        const value = {
+          userId,
+          role,
+          is_suspended: Boolean((profile as { is_suspended?: boolean | null })?.is_suspended),
+          ts: Date.now(),
+        };
+        roleCacheRef.current = value;
+        return value;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  const ensureProfileExists = useCallback(async (userId: string) => {
+    try {
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (existingProfile?.user_id) return;
+
+      if (profileError && isDev) {
+        console.warn("Profile lookup error (will attempt repair):", profileError);
+      }
+
+      const { error: createError } = await supabase.rpc("create_missing_profile", {
+        user_uuid: userId,
+      });
+
+      if (createError) {
+        console.error("Failed to create missing profile:", createError);
+      } else if (isDev) {
+        console.log("✅ Created missing profile for user:", userId);
+      }
+    } catch (error) {
+      console.error("Unexpected error ensuring profile exists:", error);
+    }
+  }, [isDev]);
+
+  const storeAuthNext = () => {
+    if (typeof window === "undefined") return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const nextFromQuery = urlParams.get("next");
+      const nextCandidate =
+        nextFromQuery ??
+        (window.location.pathname.startsWith("/auth")
+          ? "/"
+          : `${window.location.pathname}${window.location.search}`);
+
+      if (
+        nextCandidate &&
+        nextCandidate.startsWith("/") &&
+        !nextCandidate.startsWith("//") &&
+        !nextCandidate.startsWith("/auth")
+      ) {
+        localStorage.setItem("auth_next", nextCandidate);
+      } else {
+        localStorage.removeItem("auth_next");
+      }
+    } catch {
+      localStorage.removeItem("auth_next");
+    }
+  };
+
+  const getRedirectBaseUrl = () => {
+    if (typeof window !== "undefined") return window.location.origin;
+    const fromEnv = process.env.NEXTAUTH_URL;
+    if (fromEnv && fromEnv.trim()) return fromEnv.replace(/\/$/, "");
+    return getAppBaseUrl();
+  };
+
   // Rate limiting for authentication attempts
   const authRateLimiter = AuthUtils.createRateLimiter(5, 15 * 60 * 1000); // 5 attempts per 15 minutes
 
@@ -69,11 +183,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Convert to AuthUser and validate session
       if (session?.user) {
+        // Safety net: ensure profiles row exists (older users / trigger edge cases)
+        // Do not block auth on this; it should be best-effort.
+        ensureProfileExists(session.user.id);
+
         const validatedUser = AuthUtils.validateSession(session);
         if (isDev) {
           console.log("Validated user:", validatedUser);
         }
         setAuthUser(validatedUser);
+
+        // Prime role cache in the background for faster dashboard gating
+        primeRoleCache(session.user.id);
 
         // Store session data
         SessionManager.storeSession(session);
@@ -88,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log("No session or user, clearing auth state");
         }
         setAuthUser(null);
+        roleCacheRef.current = null;
         SessionManager.clearSession();
         if (event === "SIGNED_OUT") {
           AuthNotifications.showSignOutSuccess();
@@ -107,9 +229,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(existingSession?.user ?? null);
 
         if (existingSession?.user) {
+          // Safety net on first load too
+          ensureProfileExists(existingSession.user.id);
           const validatedUser = AuthUtils.validateSession(existingSession);
           setAuthUser(validatedUser);
           SessionManager.storeSession(existingSession);
+
+          // Prime role cache in the background
+          primeRoleCache(existingSession.user.id);
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
@@ -152,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
       clearInterval(refreshInterval);
     };
-  }, [toast]);
+  }, [toast, ensureProfileExists, isDev, primeRoleCache]);
 
   const signUp = async (
     email: string,
@@ -179,14 +306,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!passwordValidation.isValid) {
         return {
           error: {
-            message:
-              "Password requirements not met: " +
-              passwordValidation.errors.join(", "),
+            message: `Password requirements not met: ${passwordValidation.errors.join(", ")}`,
           },
         };
       }
 
-      const redirectUrl = `${window.location.origin}/auth/callback`;
+      const redirectUrl = `${getRedirectBaseUrl()}/auth/callback`;
 
       console.log("Attempting signup for:", email);
       console.log("Redirect URL:", redirectUrl);
@@ -233,6 +358,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Signup successful:", data);
 
         if (data.user && !data.user.email_confirmed_at) {
+          // Ensure we don't keep a session for unverified users (avoids confusing half-signed-in state)
+          await supabase.auth.signOut();
           toast({
             title: "📧 Verification Email Sent!",
             description:
@@ -249,8 +376,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
-        // Send welcome email asynchronously via unified email API (don't block on it)
-        if (firstName && data.user) {
+        // Send welcome email only after email is confirmed
+        if (firstName && data.user?.email_confirmed_at) {
           fetch("/api/email/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -368,7 +495,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Redirect to auth page after a short delay
       setTimeout(() => {
-        window.location.href = "/auth";
+        window.location.href = "/auth?mode=signup";
       }, 1000);
     } catch (error) {
       console.error("Sign out error:", error);
@@ -402,14 +529,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Starting Google OAuth sign-in...");
       console.log("Current origin:", window.location.origin);
       console.log("Current URL:", window.location.href);
-      console.log("Redirect URL:", `${window.location.origin}/auth/callback`);
+      console.log("Redirect URL:", `${getRedirectBaseUrl()}/auth/callback`);
     }
 
     try {
+      storeAuthNext();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${getRedirectBaseUrl()}/auth/callback`,
           queryParams: {
             access_type: "offline",
             prompt: "consent",
@@ -456,10 +584,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      storeAuthNext();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${getRedirectBaseUrl()}/auth/callback`,
         },
       });
 
@@ -470,10 +599,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           description: `Error: ${error.message}. Please check Supabase dashboard settings.`,
           variant: "destructive",
         });
-      } else {
-        if (isDev) {
-          console.log("GitHub OAuth initiated successfully", data);
-        }
+      } else if (isDev) {
+        console.log("GitHub OAuth initiated successfully", data);
       }
 
       return { error };
@@ -494,10 +621,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      storeAuthNext();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "twitter",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${getRedirectBaseUrl()}/auth/callback`,
         },
       });
 
@@ -508,10 +636,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           description: `Error: ${error.message}. Please check Supabase dashboard settings.`,
           variant: "destructive",
         });
-      } else {
-        if (isDev) {
-          console.log("Twitter OAuth initiated successfully", data);
-        }
+      } else if (isDev) {
+        console.log("Twitter OAuth initiated successfully", data);
       }
 
       return { error };
@@ -526,51 +652,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithApple = async () => {
-    if (isDev) {
-      console.log("Starting Apple OAuth sign-in...");
-    }
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "apple",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        console.error("Apple OAuth error details:", error);
-        toast({
-          title: "Apple sign in failed",
-          description: `Error: ${error.message}. Please check Supabase dashboard settings.`,
-          variant: "destructive",
-        });
-      } else {
-        if (isDev) {
-          console.log("Apple OAuth initiated successfully", data);
-        }
-      }
-
-      return { error };
-    } catch (catchError) {
-      console.error("Unexpected error in Apple OAuth:", catchError);
-      toast({
-        title: "Unexpected error",
-        description: "An unexpected error occurred during Apple sign-in.",
-        variant: "destructive",
-      });
-      return { error: catchError };
-    }
-  };
-
   const resetPassword = async (email: string) => {
     if (!AuthUtils.isValidEmail(email)) {
       return { error: { message: "Please enter a valid email address." } };
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: `${getRedirectBaseUrl()}/auth/reset-password`,
     });
 
     if (error) {
@@ -587,15 +675,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!passwordValidation.isValid) {
       return {
         error: {
-          message:
-            "Password requirements not met: " +
-            passwordValidation.errors.join(", "),
+          message: `Password requirements not met: ${passwordValidation.errors.join(", ")}`,
         },
       };
     }
 
     const { error } = await supabase.auth.updateUser({
-      password: password,
+      password,
     });
 
     if (error) {
@@ -615,9 +701,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase.auth.resend({
         type: "signup",
-        email: email,
+        email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${getRedirectBaseUrl()}/auth/callback`,
         },
       });
 
@@ -636,7 +722,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error };
-    } catch (err) {
+    } catch {
       const error = { message: "An unexpected error occurred." };
       toast({
         title: "Error",
@@ -703,57 +789,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return false;
 
     try {
-      // First try to get role from the current authUser if available
-      if (authUser && authUser.role) {
-        const roleHierarchy: Record<string, number> = {
-          user: 1,
-          host: 2,
-          admin: 3,
-        };
-        const userRoleValue = roleHierarchy[authUser.role] || 1;
-        const requiredRoleValue = roleHierarchy[requiredRole] || 1;
-        return userRoleValue >= requiredRoleValue;
-      }
-
-      // Fallback: Fetch role from database
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
-
-      if (error || !profile) {
-        console.error("Error fetching user role:", error);
-        // Fallback: assume user role if profile doesn't exist or role is missing
-        return requiredRole === "user";
-      }
-
-      // Type guard to ensure profile has role property
-      const userRole = (profile as any)?.role as
-        | "user"
-        | "host"
-        | "admin"
-        | undefined;
-
-      if (!userRole || !["user", "host", "admin"].includes(userRole)) {
-        console.error("Invalid user role:", userRole);
-        return requiredRole === "user";
-      }
+      // Prefer cached profile role (fast path)
+      const cached = await primeRoleCache(user.id);
+      const resolvedRole = cached?.role || authUser?.role;
+      if (!resolvedRole) return requiredRole === "user";
+      if (cached?.is_suspended) return false;
 
       // Role hierarchy: admin > host > user
       const roleHierarchy: Record<string, number> = {
         user: 1,
         host: 2,
         admin: 3,
+        super_admin: 4,
       };
 
-      const userRoleValue = roleHierarchy[userRole] || 1;
+      const userRoleValue = roleHierarchy[resolvedRole] || 1;
       const requiredRoleValue = roleHierarchy[requiredRole] || 1;
 
       return userRoleValue >= requiredRoleValue;
     } catch (error) {
       console.error("Error in hasPermission:", error);
-      return requiredRole === "user"; // Default to user role on error
+      // Default to auth metadata role if present, otherwise user
+      if (authUser?.role) {
+        const roleHierarchy: Record<string, number> = {
+          user: 1,
+          host: 2,
+          admin: 3,
+          super_admin: 4,
+        };
+        const userRoleValue = roleHierarchy[authUser.role] || 1;
+        const requiredRoleValue = roleHierarchy[requiredRole] || 1;
+        return userRoleValue >= requiredRoleValue;
+      }
+      return requiredRole === "user";
     }
   };
 

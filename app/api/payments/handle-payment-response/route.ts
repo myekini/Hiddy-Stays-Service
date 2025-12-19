@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Check if the booking exists
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*")
+      .select("id, status, guest_id, host_id, property_id")
       .eq("id", bookingId)
       .single();
 
@@ -52,25 +52,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update booking status based on payment intent status
-    let bookingStatus = "pending";
-    let paymentStatus = "pending";
-    
+    // Do not override terminal statuses
+    if (["cancelled", "completed"].includes(booking.status)) {
+      return NextResponse.json({
+        success: true,
+        message: `Booking is ${booking.status}; skipping payment status update`,
+        data: {
+          booking_id: bookingId,
+          payment_intent_id,
+          booking_status: booking.status,
+          payment_status: null,
+          skipped: true,
+        },
+      });
+    }
+
+    // Update booking status based on payment intent status.
+    // IMPORTANT: bookings.payment_status has a strict constraint:
+    // pending | paid | failed | refunded | partially_refunded
+    let bookingStatus: "pending" | "confirmed" = "pending";
+    let paymentStatus: "pending" | "paid" | "failed" = "pending";
+
     if (paymentIntent.status === "succeeded") {
       bookingStatus = "confirmed";
       paymentStatus = "paid";
-    } else if (paymentIntent.status === "canceled") {
-      bookingStatus = "cancelled";
-      paymentStatus = "cancelled";
-    } else if (paymentIntent.status === "requires_payment_method") {
+    } else if (
+      paymentIntent.status === "requires_payment_method" ||
+      paymentIntent.status === "canceled"
+    ) {
       bookingStatus = "pending";
       paymentStatus = "failed";
-    } else if (paymentIntent.status === "requires_action") {
+    } else {
+      // requires_action, processing, requires_confirmation, etc.
       bookingStatus = "pending";
-      paymentStatus = "requires_authentication";
-    } else if (paymentIntent.status === "processing") {
-      bookingStatus = "pending";
-      paymentStatus = "processing";
+      paymentStatus = "pending";
     }
 
     // Update the booking in the database
@@ -79,6 +94,7 @@ export async function POST(request: NextRequest) {
       .update({
         status: bookingStatus,
         payment_status: paymentStatus,
+        payment_intent_id: payment_intent_id,
         stripe_payment_intent_id: payment_intent_id,
         updated_at: new Date().toISOString(),
       })

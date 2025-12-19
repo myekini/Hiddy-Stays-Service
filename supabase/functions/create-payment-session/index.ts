@@ -23,6 +23,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const enabled = (Deno.env.get("ENABLE_SUPABASE_CREATE_PAYMENT_SESSION") || "").toLowerCase();
+  if (enabled !== "true") {
+    return new Response(JSON.stringify({ error: "Not found" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 404,
+    });
+  }
+
   try {
     console.log("🚀 Starting payment session creation");
     

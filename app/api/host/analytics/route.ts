@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function GET(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: "Server misconfiguration" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
     const { searchParams } = new URL(request.url);
     const hostId = searchParams.get("host_id");
     const timeRange = searchParams.get("time_range") || "30days";
@@ -40,53 +47,77 @@ export async function GET(request: NextRequest) {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Get basic stats
-    const { data: properties } = await supabase
+    const { data: properties, error: propertiesError } = await supabase
       .from("properties")
-      .select("id, title")
+      .select("id, title, rating, review_count")
       .eq("host_id", hostId);
 
-    const { data: bookings } = await supabase
+    if (propertiesError) {
+      return NextResponse.json(
+        { error: "Failed to load properties" },
+        { status: 500 }
+      );
+    }
+
+    const { data: bookings, error: bookingsError } = await supabase
       .from("bookings")
-      .select("*")
+      .select(
+        "property_id, guest_email, total_amount, status, created_at, guests_count, check_in_date, check_out_date"
+      )
       .eq("host_id", hostId)
       .gte("created_at", startDate.toISOString());
 
-    const { data: allBookings } = await supabase
-      .from("bookings")
-      .select("property_id, guest_email, total_amount, status, created_at, guests_count, check_in_date, check_out_date")
-      .eq("host_id", hostId);
+    if (bookingsError) {
+      return NextResponse.json(
+        { error: "Failed to load bookings" },
+        { status: 500 }
+      );
+    }
 
-    const { data: reviews } = await supabase
-      .from("reviews")
-      .select("rating, guest_id")
-      .eq("host_id", hostId);
+    const ratingAgg = (properties || []).reduce(
+      (acc, p) => {
+        const count = Number((p as { review_count?: unknown }).review_count) || 0;
+        const rating = Number((p as { rating?: unknown }).rating) || 0;
+        if (count > 0 && Number.isFinite(rating)) {
+          acc.sum += rating * count;
+          acc.count += count;
+        }
+        return acc;
+      },
+      { sum: 0, count: 0 }
+    );
 
-    // Calculate summary metrics
     const totalBookings = bookings?.length || 0;
-    const confirmedBookings = bookings?.filter(b => b.status === "confirmed").length || 0;
-    const totalEarnings = bookings?.filter(b => b.status === "confirmed")
-      .reduce((sum, b) => sum + (b.total_amount || 0), 0) || 0;
-    const avgBookingValue = totalBookings > 0 ? totalEarnings / confirmedBookings : 0;
+    const confirmedBookingsList =
+      bookings?.filter((b) => b.status === "confirmed") || [];
+    const confirmedBookings = confirmedBookingsList.length;
+    const totalEarnings = confirmedBookingsList.reduce(
+      (sum, b) => sum + (b.total_amount || 0),
+      0
+    );
+    const avgBookingValue =
+      confirmedBookings > 0 ? totalEarnings / confirmedBookings : 0;
 
     // Calculate occupancy rate (simplified)
-    const totalDays = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const bookedDays = bookings?.filter(b => b.status === "confirmed")
-      .reduce((sum, b) => {
+    const totalDays = Math.max(
+      1,
+      Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    );
+    const bookedDays = confirmedBookingsList.reduce((sum, b) => {
         const checkIn = new Date(b.check_in_date);
         const checkOut = new Date(b.check_out_date);
         return sum + Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-      }, 0) || 0;
+      }, 0);
     
     const occupancyRate = properties?.length ? (bookedDays / (totalDays * properties.length)) * 100 : 0;
 
-    // Generate monthly earnings trend
-    const monthlyEarnings = [];
+    // Generate monthly earnings trend (last 6 months)
+    const monthlyEarnings: Array<{ month: string; earnings: number; bookings: number }> = [];
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
       
-      const monthBookings = allBookings?.filter(b => {
+      const monthBookings = bookings?.filter((b) => {
         const createdAt = new Date(b.created_at);
         return createdAt >= monthStart && createdAt <= monthEnd && b.status === "confirmed";
       }) || [];
@@ -98,46 +129,58 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Property performance
-    const propertyPerformance = properties?.map(property => {
-      const propBookings = allBookings?.filter(b => b.property_id === property.id && b.status === "confirmed") || [];
-      const revenue = propBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
-      
-      return {
-        propertyId: property.id,
-        title: property.title,
-        bookings: propBookings.length,
-        revenue: revenue,
-        views: Math.floor(Math.random() * 1000) + 100, // Mock data
-        conversionRate: propBookings.length > 0 ? (propBookings.length / (Math.floor(Math.random() * 50) + 20)) * 100 : 0
-      };
-    }) || [];
+    const propertyPerformance =
+      properties?.map((property) => {
+        const propBookings =
+          bookings?.filter(
+            (b) => b.property_id === property.id && b.status === "confirmed"
+          ) || [];
+        const revenue = propBookings.reduce(
+          (sum, b) => sum + (b.total_amount || 0),
+          0
+        );
 
-    // Guest analytics
-    const uniqueGuests = new Set(allBookings?.map(b => b.guest_email)).size;
-    const repeatGuests = allBookings?.reduce((acc, booking) => {
-      const guestBookings = allBookings.filter(b => b.guest_email === booking.guest_email);
-      if (guestBookings.length > 1 && !acc.includes(booking.guest_email)) {
-        acc.push(booking.guest_email);
-      }
+        return {
+          propertyId: property.id,
+          title: property.title,
+          bookings: propBookings.length,
+          revenue,
+        };
+      }) || [];
+
+    const guestEmailCounts = (bookings || []).reduce((acc, b) => {
+      const email = b.guest_email;
+      if (!email) return acc;
+      acc.set(email, (acc.get(email) || 0) + 1);
       return acc;
-    }, [] as string[]).length || 0;
+    }, new Map<string, number>());
 
-    const avgStayDuration = allBookings?.length ? 
-      allBookings.reduce((sum, b) => {
-        const checkIn = new Date(b.check_in_date);
-        const checkOut = new Date(b.check_out_date);
-        return sum + Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-      }, 0) / allBookings.length : 0;
+    const uniqueGuests = guestEmailCounts.size;
+    const repeatGuests = Array.from(guestEmailCounts.values()).filter((c) => c > 1)
+      .length;
 
-    const avgRating = reviews?.length ? 
-      reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+    const avgStayDuration = confirmedBookingsList.length
+      ? confirmedBookingsList.reduce((sum, b) => {
+          const checkIn = new Date(b.check_in_date);
+          const checkOut = new Date(b.check_out_date);
+          return (
+            sum +
+            Math.ceil(
+              (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
+            )
+          );
+        }, 0) / confirmedBookingsList.length
+      : 0;
+
+    const avgRating = ratingAgg.count > 0 ? ratingAgg.sum / ratingAgg.count : 0;
 
     // Find top performer
     const topPerformer = propertyPerformance.length > 0 ? 
       propertyPerformance.reduce((top, current) => 
         current.revenue > top.revenue ? current : top
       ) : null;
+
+    const projectedMonthlyEarnings = totalDays > 0 ? (totalEarnings / totalDays) * 30 : 0;
 
     const analytics = {
       summary: {
@@ -150,8 +193,7 @@ export async function GET(request: NextRequest) {
       },
       trends: {
         monthlyEarnings,
-        projectedMonthlyEarnings: monthlyEarnings.length > 0 ? 
-          monthlyEarnings[monthlyEarnings.length - 1].earnings * 1.08 : 0
+        projectedMonthlyEarnings: Math.round(projectedMonthlyEarnings * 100) / 100
       },
       properties: {
         performance: propertyPerformance,
@@ -168,8 +210,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json(analytics);
-  } catch (error) {
-    console.error("Error fetching host analytics:", error);
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

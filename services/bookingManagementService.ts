@@ -560,7 +560,7 @@ class BookingManagementService {
         (1000 * 60 * 60 * 24)
     );
     const subtotal = pricePerNight * nights;
-    const cleaningFee = 50; // This could be configurable per property
+    const cleaningFee = 100; // This could be configurable per property
     const serviceFee = Math.round(subtotal * 0.12); // 12% service fee
     return subtotal + cleaningFee + serviceFee;
   }

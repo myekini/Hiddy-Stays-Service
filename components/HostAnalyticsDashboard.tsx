@@ -1,20 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
-  TrendingUp,
-  TrendingDown,
   DollarSign,
   Calendar,
-  Users,
   Star,
-  Home,
-  Eye,
   Activity,
   BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -23,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -30,40 +24,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useHostAnalytics } from "@/hooks/useHostAnalytics";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 
 interface HostAnalyticsDashboardProps {
   hostId: string;
 }
 
-const COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
-
 export function HostAnalyticsDashboard({ hostId }: HostAnalyticsDashboardProps) {
   const [timeRange, setTimeRange] = useState("30days");
-  const { data: analytics, isLoading, error } = useHostAnalytics(hostId, timeRange);
+  const { data: analytics, isLoading, error, refetch } = useHostAnalytics(hostId, timeRange);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading analytics...</p>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-1">
+            <div className="h-7 w-48 bg-muted rounded animate-pulse" />
+            <div className="h-4 w-72 bg-muted rounded animate-pulse" />
+          </div>
+          <div className="h-10 w-full sm:w-[180px] bg-muted rounded animate-pulse" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border/50 bg-card p-5">
+              <div className="flex items-center justify-between animate-pulse">
+                <div className="h-10 w-10 rounded-lg bg-muted" />
+                <div className="h-4 w-16 rounded bg-muted" />
+              </div>
+              <div className="mt-4 space-y-2 animate-pulse">
+                <div className="h-3 w-24 rounded bg-muted" />
+                <div className="h-7 w-32 rounded bg-muted" />
+                <div className="h-3 w-40 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-border/50 bg-card p-5">
+          <div className="h-5 w-40 bg-muted rounded animate-pulse" />
+          <div className="mt-3 h-[260px] bg-muted/50 rounded animate-pulse" />
         </div>
       </div>
     );
@@ -71,13 +81,25 @@ export function HostAnalyticsDashboard({ hostId }: HostAnalyticsDashboardProps) 
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <Activity className="w-12 h-12 mx-auto mb-4 text-destructive" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Failed to Load Analytics
-          </h3>
-          <p className="text-muted-foreground">{error.message}</p>
+      <Card className="border border-destructive/40 bg-destructive/5">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-destructive" />
+                <h3 className="text-base font-semibold text-foreground">
+                  Failed to load analytics
+                </h3>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 break-words">
+                {error.message}
+              </p>
+            </div>
+            <Button variant="outline" onClick={refetch}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -110,160 +132,120 @@ export function HostAnalyticsDashboard({ hostId }: HostAnalyticsDashboardProps) 
     return `${value.toFixed(1)}%`;
   };
 
+  const formatNumber = (n: number) => new Intl.NumberFormat("en-CA").format(n);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header with Time Range Selector */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-light text-slate-900 tracking-tight">
+          <h2 className="text-2xl font-semibold text-foreground tracking-tight">
             Analytics Overview
           </h2>
-          <p className="text-slate-600 font-light mt-2">
-            Performance insights and trends for your properties
+          <p className="text-muted-foreground mt-1">
+            Key performance insights for your listings
           </p>
         </div>
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-[180px]">
+        <div className="flex items-center gap-2">
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Select time range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7days">Last 7 Days</SelectItem>
-            <SelectItem value="30days">Last 30 Days</SelectItem>
-            <SelectItem value="90days">Last 90 Days</SelectItem>
-            <SelectItem value="12months">Last 12 Months</SelectItem>
-            <SelectItem value="ytd">Year to Date</SelectItem>
-          </SelectContent>
-        </Select>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="90days">Last 90 days</SelectItem>
+              <SelectItem value="12months">Last 12 months</SelectItem>
+              <SelectItem value="ytd">Year to date</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={refetch}>
+            <RefreshCw className="w-4 h-4" />
+            <span className="sr-only">Refresh</span>
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-blue-600" />
-                </div>
-                <Badge variant="outline" className="text-green-600 border-green-200">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +8%
-                </Badge>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <DollarSign className="w-5 h-5" />
               </div>
-              <p className="text-sm text-slate-500 font-medium uppercase tracking-wide mb-1">
-                Total Earnings
-              </p>
-              <p className="text-3xl font-light text-slate-900 tracking-tight">
-                {formatCurrency(analytics.summary.totalEarnings)}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                Avg: {formatCurrency(analytics.summary.avgBookingValue)} per booking
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <p className="text-xs text-muted-foreground">Earnings</p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">Total</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {formatCurrency(analytics.summary.totalEarnings)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Avg {formatCurrency(analytics.summary.avgBookingValue)} / booking
+            </p>
+          </CardContent>
+        </Card>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-emerald-600" />
-                </div>
-                <Badge variant="outline" className="text-green-600 border-green-200">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +12%
-                </Badge>
+        <Card className="border border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-700 flex items-center justify-center">
+                <Calendar className="w-5 h-5" />
               </div>
-              <p className="text-sm text-slate-500 font-medium uppercase tracking-wide mb-1">
-                Total Bookings
-              </p>
-              <p className="text-3xl font-light text-slate-900 tracking-tight">
-                {analytics.summary.totalBookings}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                {analytics.summary.confirmedBookings} confirmed
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <p className="text-xs text-muted-foreground">Bookings</p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">Total</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {formatNumber(analytics.summary.totalBookings)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatNumber(analytics.summary.confirmedBookings)} confirmed
+            </p>
+          </CardContent>
+        </Card>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-purple-600" />
-                </div>
-                <Badge variant="outline" className="text-green-600 border-green-200">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +5%
-                </Badge>
+        <Card className="border border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-700 flex items-center justify-center">
+                <Activity className="w-5 h-5" />
               </div>
-              <p className="text-sm text-slate-500 font-medium uppercase tracking-wide mb-1">
-                Occupancy Rate
-              </p>
-              <p className="text-3xl font-light text-slate-900 tracking-tight">
-                {formatPercent(analytics.summary.occupancyRate)}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                Across {analytics.summary.activeProperties} properties
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <p className="text-xs text-muted-foreground">Occupancy</p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">Rate</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {formatPercent(analytics.summary.occupancyRate)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Across {formatNumber(analytics.summary.activeProperties)} properties
+            </p>
+          </CardContent>
+        </Card>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-        >
-          <Card className="bg-white border-0 shadow-sm hover:shadow-lg transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-amber-600" />
-                </div>
-                <Badge variant="outline" className="text-green-600 border-green-200">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  +15%
-                </Badge>
+        <Card className="border border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center">
+                <Star className="w-5 h-5" />
               </div>
-              <p className="text-sm text-slate-500 font-medium uppercase tracking-wide mb-1">
-                Total Guests
-              </p>
-              <p className="text-3xl font-light text-slate-900 tracking-tight">
-                {analytics.guests.totalGuests}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                {analytics.guests.repeatGuests} repeat guests
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <p className="text-xs text-muted-foreground">Rating</p>
+            </div>
+            <p className="mt-4 text-sm text-muted-foreground">Average</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {analytics.guests.avgRating ? analytics.guests.avgRating.toFixed(1) : "0.0"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatNumber(analytics.guests.totalGuests)} unique guests
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Revenue Trend Chart */}
-      <Card className="bg-white border-0 shadow-sm">
+      <Card className="border border-border/50">
         <CardHeader>
-          <CardTitle className="text-xl font-light text-slate-900 tracking-tight">
-            Revenue Trend
-          </CardTitle>
-          <CardDescription className="text-slate-600 font-light">
-            Monthly earnings and booking volume over time
-          </CardDescription>
+          <CardTitle className="text-lg font-semibold text-foreground">Revenue</CardTitle>
+          <CardDescription>Monthly earnings and booking volume</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -292,9 +274,13 @@ export function HostAnalyticsDashboard({ hostId }: HostAnalyticsDashboardProps) 
                   border: '1px solid #e2e8f0',
                   borderRadius: '8px',
                 }}
-                formatter={(value: any, name: string) => {
-                  if (name === 'earnings') return [formatCurrency(value), 'Revenue'];
-                  return [value, 'Bookings'];
+                formatter={(value: unknown, name: string) => {
+                  if (name === 'earnings') {
+                    const n = typeof value === "number" ? value : Number(value);
+                    return [formatCurrency(Number.isFinite(n) ? n : 0), 'Revenue'];
+                  }
+                  const n = typeof value === "number" ? value : Number(value);
+                  return [Number.isFinite(n) ? n : 0, 'Bookings'];
                 }}
               />
               <Legend />
@@ -320,182 +306,75 @@ export function HostAnalyticsDashboard({ hostId }: HostAnalyticsDashboardProps) 
               />
             </LineChart>
           </ResponsiveContainer>
-          <div className="mt-6 p-4 bg-slate-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Projected Monthly Revenue</p>
-                <p className="text-2xl font-semibold text-slate-900">
-                  {formatCurrency(analytics.trends.projectedMonthlyEarnings)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-slate-600 mb-1">vs Last Period</p>
-                <div className="flex items-center gap-1 text-green-600">
-                  <ArrowUpRight className="w-4 h-4" />
-                  <span className="font-semibold">+8%</span>
-                </div>
-              </div>
-            </div>
+          <div className="mt-5 rounded-lg border border-border/50 bg-muted/20 p-4">
+            <p className="text-sm text-muted-foreground">Projected monthly (based on selected range)</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">
+              {formatCurrency(analytics.trends.projectedMonthlyEarnings)}
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Property Performance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Performing Properties */}
-        <Card className="bg-white border-0 shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="border border-border/50 lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-xl font-light text-slate-900 tracking-tight">
-              Property Performance
-            </CardTitle>
-            <CardDescription className="text-slate-600 font-light">
-              Revenue and bookings by property
-            </CardDescription>
+            <CardTitle className="text-lg font-semibold text-foreground">Top properties</CardTitle>
+            <CardDescription>Revenue and bookings (confirmed)</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analytics.properties.performance}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="title"
-                  stroke="#64748b"
-                  style={{ fontSize: '11px' }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis
-                  stroke="#64748b"
-                  style={{ fontSize: '12px' }}
-                  tickFormatter={(value) => `$${value}`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: any) => formatCurrency(value)}
-                />
-                <Bar dataKey="revenue" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {analytics.properties.performance.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No confirmed bookings yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {analytics.properties.performance
+                  .slice()
+                  .sort((a, b) => b.revenue - a.revenue)
+                  .slice(0, 6)
+                  .map((p) => (
+                    <div key={p.propertyId} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{p.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatNumber(p.bookings)} booking{p.bookings === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground whitespace-nowrap">
+                        {formatCurrency(p.revenue)}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Guest Statistics */}
-        <Card className="bg-white border-0 shadow-sm">
+        <Card className="border border-border/50">
           <CardHeader>
-            <CardTitle className="text-xl font-light text-slate-900 tracking-tight">
-              Guest Insights
-            </CardTitle>
-            <CardDescription className="text-slate-600 font-light">
-              Guest behavior and satisfaction metrics
-            </CardDescription>
+            <CardTitle className="text-lg font-semibold text-foreground">Guests</CardTitle>
+            <CardDescription>Quality and retention</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-5 h-5 text-slate-600" />
-                    <p className="text-sm text-slate-600 font-medium">Total Guests</p>
-                  </div>
-                  <p className="text-2xl font-semibold text-slate-900">
-                    {analytics.guests.totalGuests}
-                  </p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Star className="w-5 h-5 text-amber-500" />
-                    <p className="text-sm text-slate-600 font-medium">Avg Rating</p>
-                  </div>
-                  <p className="text-2xl font-semibold text-slate-900">
-                    {analytics.guests.avgRating.toFixed(1)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium text-slate-700">Repeat Guests</p>
-                  <Badge variant="outline" className="bg-white">
-                    {((analytics.guests.repeatGuests / analytics.guests.totalGuests) * 100).toFixed(0)}%
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-white rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${(analytics.guests.repeatGuests / analytics.guests.totalGuests) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-700">
-                    {analytics.guests.repeatGuests} / {analytics.guests.totalGuests}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-lg">
-                <p className="text-sm text-slate-600 font-medium mb-2">Avg Stay Duration</p>
-                <p className="text-2xl font-semibold text-slate-900">
-                  {analytics.guests.avgStayDuration.toFixed(1)} nights
-                </p>
-              </div>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Unique guests</p>
+              <p className="text-sm font-semibold text-foreground">
+                {formatNumber(analytics.guests.totalGuests)}
+              </p>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Repeat guests</p>
+              <p className="text-sm font-semibold text-foreground">
+                {formatNumber(analytics.guests.repeatGuests)}
+              </p>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Avg stay</p>
+              <p className="text-sm font-semibold text-foreground">
+                {analytics.guests.avgStayDuration.toFixed(1)} nights
+              </p>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Top Performer Highlight */}
-      {analytics.properties.topPerformer && (
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-0 shadow-lg text-white">
-          <CardContent className="p-8">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium mb-4">
-                  <Star className="w-4 h-4 text-amber-400" />
-                  <span>Top Performer</span>
-                </div>
-                <h3 className="text-2xl font-light mb-2 tracking-tight">
-                  {analytics.properties.topPerformer.title}
-                </h3>
-                <div className="grid grid-cols-4 gap-6 mt-6">
-                  <div>
-                    <p className="text-sm text-white/60 mb-1">Revenue</p>
-                    <p className="text-xl font-semibold">
-                      {formatCurrency(analytics.properties.topPerformer.revenue)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-white/60 mb-1">Bookings</p>
-                    <p className="text-xl font-semibold">
-                      {analytics.properties.topPerformer.bookings}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-white/60 mb-1">Views</p>
-                    <p className="text-xl font-semibold">
-                      {analytics.properties.topPerformer.views}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-white/60 mb-1">Conversion</p>
-                    <p className="text-xl font-semibold">
-                      {formatPercent(analytics.properties.topPerformer.conversionRate)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="w-24 h-24 bg-white/10 rounded-2xl flex items-center justify-center">
-                <Home className="w-12 h-12 text-white/80" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

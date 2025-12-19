@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Calendar as CalendarIcon,
   Loader2,
   CheckCircle,
-  XCircle,
   Clock,
 } from "lucide-react";
 import {
@@ -13,21 +12,20 @@ import {
   addMonths,
   isSameMonth,
   isSameDay,
-  isWithinInterval,
   startOfMonth,
   endOfMonth,
-  eachDayOfInterval,
   isBefore,
   isAfter,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { DateRange } from "react-day-picker";
 
 interface BlockedDate {
-  date: string;
+  start_date: string;
+  end_date: string;
   reason?: string;
 }
 
@@ -37,8 +35,6 @@ interface Booking {
   check_out_date: string;
   status: string;
 }
-
-import { DateRange } from "react-day-picker";
 
 interface AvailabilityCalendarProps {
   propertyId: string;
@@ -71,13 +67,36 @@ export default function AvailabilityCalendar({
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (propertyId) {
-      fetchAvailability();
-    }
-  }, [propertyId, month]);
+  const getDateAvailabilityType = (date: Date) => {
+    const dayKey = format(date, "yyyy-MM-dd");
 
-  const fetchAvailability = async () => {
+    const isManuallyBlocked = blockedDates.some((blockedDate) => {
+      const start = new Date(blockedDate.start_date);
+      const end = new Date(blockedDate.end_date);
+      const startKey = format(start, "yyyy-MM-dd");
+      const endKey = format(end, "yyyy-MM-dd");
+      return dayKey >= startKey && dayKey <= endKey;
+    });
+
+    if (isManuallyBlocked) return "blocked" as const;
+
+    const booking = bookings.find((b) => {
+      if (b.status !== "confirmed" && b.status !== "pending") return false;
+
+      const checkInDate = new Date(b.check_in_date);
+      const checkOutDate = new Date(b.check_out_date);
+      const checkInKey = format(checkInDate, "yyyy-MM-dd");
+      const checkOutKey = format(checkOutDate, "yyyy-MM-dd");
+      return dayKey >= checkInKey && dayKey < checkOutKey;
+    });
+
+    if (!booking) return null;
+    if (booking.status === "confirmed") return "confirmed" as const;
+    if (booking.status === "pending") return "pending" as const;
+    return null;
+  };
+
+  const fetchAvailability = useCallback(async () => {
     setLoading(true);
     try {
       const startDate = startOfMonth(month).toISOString().split("T")[0];
@@ -96,7 +115,6 @@ export default function AvailabilityCalendar({
         throw new Error(errorData.message || "Failed to fetch availability");
       }
     } catch (error) {
-      console.error("Error fetching availability:", error);
       toast({
         title: "Error",
         description:
@@ -108,26 +126,16 @@ export default function AvailabilityCalendar({
     } finally {
       setLoading(false);
     }
-  };
+  }, [month, propertyId, toast]);
+
+  useEffect(() => {
+    if (propertyId) {
+      fetchAvailability();
+    }
+  }, [propertyId, month, fetchAvailability]);
 
   const isDateBlocked = (date: Date) => {
-    // Check if date is in blocked dates
-    const isBlocked = blockedDates.some((blockedDate) =>
-      isSameDay(new Date(blockedDate.date), date)
-    );
-
-    if (isBlocked) return true;
-
-    // Check if date is in any confirmed booking
-    return bookings.some((booking) => {
-      if (booking.status !== "confirmed" && booking.status !== "pending")
-        return false;
-
-      const checkInDate = new Date(booking.check_in_date);
-      const checkOutDate = new Date(booking.check_out_date);
-
-      return isWithinInterval(date, { start: checkInDate, end: checkOutDate });
-    });
+    return getDateAvailabilityType(date) !== null;
   };
 
   const isDateDisabled = (date: Date) => {
@@ -143,13 +151,21 @@ export default function AvailabilityCalendar({
   };
 
   const getDayClass = (date: Date) => {
-    if (isDateBlocked(date)) {
+    const availabilityType = getDateAvailabilityType(date);
+    if (availabilityType === "blocked") {
+      return "bg-slate-200/70 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300";
+    }
+    if (availabilityType === "pending") {
+      return "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/20 dark:text-amber-200";
+    }
+    if (availabilityType === "confirmed") {
       return "bg-destructive/10 text-destructive hover:bg-destructive/20";
     }
     return "";
   };
 
   const getBookingInfo = (date: Date) => {
+    const dayKey = format(date, "yyyy-MM-dd");
     const booking = bookings.find((booking) => {
       if (booking.status !== "confirmed" && booking.status !== "pending")
         return false;
@@ -157,7 +173,9 @@ export default function AvailabilityCalendar({
       const checkInDate = new Date(booking.check_in_date);
       const checkOutDate = new Date(booking.check_out_date);
 
-      return isWithinInterval(date, { start: checkInDate, end: checkOutDate });
+      const checkInKey = format(checkInDate, "yyyy-MM-dd");
+      const checkOutKey = format(checkOutDate, "yyyy-MM-dd");
+      return dayKey >= checkInKey && dayKey < checkOutKey;
     });
 
     return booking;
@@ -223,14 +241,22 @@ export default function AvailabilityCalendar({
           month={month}
           onMonthChange={setMonth}
           disabled={isDateDisabled}
-          modifiers={{ booked: (date) => isDateBlocked(date) }}
+          modifiers={{
+            bookedConfirmed: (date) => getDateAvailabilityType(date) === "confirmed",
+            bookedPending: (date) => getDateAvailabilityType(date) === "pending",
+            blocked: (date) => getDateAvailabilityType(date) === "blocked",
+          }}
           modifiersClassNames={{
-            booked:
+            bookedConfirmed:
               "bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive-foreground",
+            bookedPending:
+              "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
+            blocked:
+              "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
           }}
           className="rounded-md border shadow p-3"
           components={{
-            Day: ({ date, displayMonth, ...props }) => {
+            Day: ({ date, displayMonth: _displayMonth, ...props }) => {
               const bookingIcon = getBookingStatusIcon(date);
               return (
                 <button
@@ -258,14 +284,22 @@ export default function AvailabilityCalendar({
           month={month}
           onMonthChange={setMonth}
           disabled={isDateDisabled}
-          modifiers={{ booked: (date) => isDateBlocked(date) }}
+          modifiers={{
+            bookedConfirmed: (date) => getDateAvailabilityType(date) === "confirmed",
+            bookedPending: (date) => getDateAvailabilityType(date) === "pending",
+            blocked: (date) => getDateAvailabilityType(date) === "blocked",
+          }}
           modifiersClassNames={{
-            booked:
+            bookedConfirmed:
               "bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive-foreground",
+            bookedPending:
+              "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
+            blocked:
+              "bg-slate-200/70 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
           }}
           className="rounded-md border shadow p-3"
           components={{
-            Day: ({ date, displayMonth, ...props }) => {
+            Day: ({ date, displayMonth: _displayMonth, ...props }) => {
               const bookingIcon = getBookingStatusIcon(date);
               return (
                 <button
@@ -295,7 +329,15 @@ export default function AvailabilityCalendar({
           <div className="flex items-center gap-4 text-sm text-foreground">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-destructive/10 border border-destructive/20"></div>
-              <span>Unavailable</span>
+              <span>Confirmed</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-amber-500/15 border border-amber-500/20"></div>
+              <span>Pending</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-slate-200/70 border border-slate-300 dark:bg-slate-800 dark:border-slate-700"></div>
+              <span>Blocked</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-primary"></div>

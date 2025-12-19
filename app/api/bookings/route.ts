@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { unifiedEmailService } from "@/lib/unified-email-service";
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
@@ -99,13 +99,17 @@ export async function GET(request: NextRequest) {
     const validPaymentStatuses = [
       "pending",
       "processing",
-      "succeeded",
+      "paid",
       "failed",
       "refunded",
       "partially_refunded",
       "disputed",
     ];
-    if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) {
+
+    const normalizedPaymentStatus =
+      paymentStatus === "succeeded" ? "paid" : paymentStatus;
+
+    if (normalizedPaymentStatus && !validPaymentStatuses.includes(normalizedPaymentStatus)) {
       return NextResponse.json(
         {
           error: `Invalid payment_status. Must be one of: ${validPaymentStatuses.join(", ")}`,
@@ -168,8 +172,8 @@ export async function GET(request: NextRequest) {
     if (status) {
       query = query.eq("status", status);
     }
-    if (paymentStatus) {
-      query = query.eq("payment_status", paymentStatus);
+    if (normalizedPaymentStatus) {
+      query = query.eq("payment_status", normalizedPaymentStatus);
     }
 
     // Apply pagination
@@ -213,7 +217,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch property images separately to avoid relationship issues
     const propertyIds = bookings?.map(b => b.property_id).filter(Boolean) || [];
-    let propertyImagesMap: Record<string, string[]> = {};
+    const propertyImagesMap: Record<string, string[]> = {};
     
     if (propertyIds.length > 0) {
       const { data: images, error: imagesError } = await supabase
@@ -297,7 +301,7 @@ export async function GET(request: NextRequest) {
             propertyId,
             hasImagesInMap: !!propertyImagesMap[propertyId],
             imagesCount: images.length,
-            images: images,
+            images,
             allPropertyIds: Object.keys(propertyImagesMap),
           });
         }
@@ -306,7 +310,7 @@ export async function GET(request: NextRequest) {
           ...booking,
           property: {
             ...propertyData,
-            images: images,
+            images,
           },
           guest_name:
             `${booking.guest?.first_name || ""} ${booking.guest?.last_name || ""}`.trim(),

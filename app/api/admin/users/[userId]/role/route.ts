@@ -58,7 +58,10 @@ export async function PATCH(
       .eq("user_id", user.id)
       .single();
 
-    if (adminCheckError || adminProfile?.role !== "admin") {
+    if (
+      adminCheckError ||
+      (adminProfile?.role !== "admin" && adminProfile?.role !== "super_admin")
+    ) {
       return NextResponse.json(
         { error: "Unauthorized - Admin access required" },
         { status: 403 }
@@ -70,10 +73,17 @@ export async function PATCH(
     const { role } = body;
 
     // Validate role
-    if (!role || !["user", "host", "admin"].includes(role)) {
+    if (!role || !["user", "host", "admin", "super_admin"].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be "user", "host", or "admin"' },
+        { error: 'Invalid role. Must be "user", "host", "admin", or "super_admin"' },
         { status: 400 }
+      );
+    }
+
+    if (role === "super_admin" && adminProfile?.role !== "super_admin") {
+      return NextResponse.json(
+        { error: "Only super_admin can assign super_admin" },
+        { status: 403 }
       );
     }
 
@@ -81,7 +91,11 @@ export async function PATCH(
     const targetUserId = resolvedParams.userId;
 
     // Prevent admin from demoting themselves
-    if (targetUserId === user.id && role !== "admin") {
+    if (
+      targetUserId === user.id &&
+      ((adminProfile?.role === "admin" && role !== "admin") ||
+        (adminProfile?.role === "super_admin" && role !== "super_admin"))
+    ) {
       return NextResponse.json(
         { error: "Cannot change your own admin role" },
         { status: 400 }
@@ -113,7 +127,8 @@ export async function PATCH(
       await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
         user_metadata: {
           ...targetUser.user.user_metadata,
-          role: role,
+          role,
+          is_host: role === "host" || role === "admin" || role === "super_admin",
         },
       });
 
@@ -129,8 +144,8 @@ export async function PATCH(
     const { error: updateProfileError } = await supabaseAdmin
       .from("profiles")
       .update({
-        role: role,
-        is_host: role === "host" || role === "admin",
+        role,
+        is_host: role === "host" || role === "admin" || role === "super_admin",
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", targetUserId);
@@ -177,7 +192,7 @@ export async function PATCH(
       user: {
         id: targetUserId,
         email: targetUser.user.email,
-        role: role,
+        role,
       },
     });
   } catch (error) {
@@ -233,7 +248,10 @@ export async function GET(
       .eq("user_id", user.id)
       .single();
 
-    if (adminCheckError || adminProfile?.role !== "admin") {
+    if (
+      adminCheckError ||
+      (adminProfile?.role !== "admin" && adminProfile?.role !== "super_admin")
+    ) {
       return NextResponse.json(
         { error: "Unauthorized - Admin access required" },
         { status: 403 }

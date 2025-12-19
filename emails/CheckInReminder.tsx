@@ -8,6 +8,7 @@ import {
 } from '@react-email/components';
 import { EmailLayout } from './components/EmailLayout';
 import { colors, typography, spacing, layout, cards, buttons } from './design-tokens';
+import { buildAppUrl } from '../lib/app-url';
 
 interface CheckInReminderProps {
   guestName: string;
@@ -151,7 +152,9 @@ export const CheckInReminder = ({
       {/* CTA */}
       <Section style={ctaSection}>
         <Button
-          href={`https://hiddystays.com/bookings/${bookingId}?utm_source=email&utm_medium=checkin_reminder&utm_campaign=guest_experience`}
+          href={buildAppUrl(
+            `/bookings/${bookingId}?utm_source=email&utm_medium=checkin_reminder&utm_campaign=guest_experience`
+          )}
           style={primaryButton}
         >
           View Booking Details

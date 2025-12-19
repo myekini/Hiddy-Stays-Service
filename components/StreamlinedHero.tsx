@@ -30,7 +30,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground tracking-tighter mb-4"
         >
-          Your Urban <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">Sanctuary</span>
+          Skyline Suite <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">in Surrey, BC</span>
         </motion.h1>
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
@@ -38,8 +38,25 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           transition={{ delay: 0.2, duration: 0.6 }}
           className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto font-medium leading-relaxed tracking-tight"
         >
-          Escape to a premium skyline suite with breathtaking views in Surrey, BC.
+          Book direct. No platform fees. Secure checkout.
         </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="mt-5 flex flex-wrap justify-center gap-2"
+        >
+          <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
+            Zero platform fees
+          </div>
+          <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
+            Secure payments
+          </div>
+          <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
+            Instant confirmation
+          </div>
+        </motion.div>
       </div>
 
       {/* 2. Centered Rounded Image Container */}
@@ -64,7 +81,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.6, type: "spring", stiffness: 100 }}
-          className="absolute left-0 right-0 -bottom-8 sm:-bottom-10 flex justify-center pointer-events-none z-20"
+          className="absolute left-0 right-0 -bottom-10 sm:-bottom-12 flex justify-center pointer-events-none z-20"
         >
           <div className="pointer-events-auto bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] p-2 pl-6 pr-2 max-w-4xl w-auto mx-auto flex flex-col sm:flex-row items-center gap-4 sm:gap-8 ring-1 ring-black/5 dark:ring-white/10">
             
@@ -92,7 +109,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Guests</div>
-                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">1-2 Guests</div>
+                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">Up to 2 Guests</div>
                 </div>
               </div>
             </div>
@@ -108,21 +125,25 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
                 </div>
                 <div className="text-left">
                   <div className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Price</div>
-                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">$140 <span className="font-normal text-muted-foreground">/ night</span></div>
+                  <div className="font-semibold text-sm text-foreground whitespace-nowrap">CA$140 <span className="font-normal text-muted-foreground">/ night</span></div>
                 </div>
               </div>
             </div>
 
             {/* Action Button */}
-            <Button 
-              size="lg" 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg hover:shadow-blue-500/25 transition-all duration-300"
-              asChild
-            >
-              <Link href="/property/ed71c0f6-2204-4d14-b04c-6081b9d22c67">
-                Book Now
-              </Link>
-            </Button>
+            <div className="w-full sm:w-auto flex flex-col items-stretch sm:items-end gap-1">
+              <div className="flex flex-col items-stretch">
+                <Button
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-12 px-7 text-base font-semibold shadow-lg hover:shadow-blue-500/25 transition-all duration-300"
+                  asChild
+                >
+                  <Link href="/property/ed71c0f6-2204-4d14-b04c-6081b9d22c67">
+                    Book Now
+                  </Link>
+                </Button>
+              </div>
+            </div>
 
           </div>
         </motion.div>

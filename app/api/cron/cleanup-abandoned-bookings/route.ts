@@ -130,17 +130,34 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { dryRun = false, maxAge = 60 } = body;
+    const {
+      dryRun = false,
+      maxAge,
+      maxAgeCard = 60,
+      maxAgeBankTransfer = 24 * 60,
+    } = body;
 
-    console.log(`🧹 Manual cleanup triggered (dryRun: ${dryRun}, maxAge: ${maxAge} minutes)`);
+    const effectiveMaxAge = typeof maxAge === "number" ? maxAge : undefined;
+    const cutoffCard = new Date(Date.now() - maxAgeCard * 60 * 1000).toISOString();
+    const cutoffBank = new Date(
+      Date.now() - maxAgeBankTransfer * 60 * 1000
+    ).toISOString();
+
+    console.log(
+      `🧹 Manual cleanup triggered (dryRun: ${dryRun}, maxAge: ${effectiveMaxAge ?? "split"} minutes)`
+    );
 
     // Get bookings that would be deleted
     const { data: bookings, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, created_at, guest_name, guest_email, total_amount")
+      .select("id, created_at, guest_name, guest_email, total_amount, payment_method")
       .eq("status", "pending")
       .eq("payment_status", "pending")
-      .lt("created_at", new Date(Date.now() - maxAge * 60 * 1000).toISOString());
+      .or(
+        effectiveMaxAge
+          ? `created_at.lt.${new Date(Date.now() - effectiveMaxAge * 60 * 1000).toISOString()}`
+          : `and(payment_method.eq.bank_transfer,created_at.lt.${cutoffBank}),and(payment_method.neq.bank_transfer,created_at.lt.${cutoffCard})`
+      );
 
     if (fetchError) {
       throw fetchError;
@@ -156,6 +173,7 @@ export async function POST(request: NextRequest) {
           guestName: b.guest_name,
           amount: b.total_amount,
           createdAt: b.created_at,
+          paymentMethod: b.payment_method,
           ageMinutes: Math.floor(
             (Date.now() - new Date(b.created_at).getTime()) / (1000 * 60)
           ),
@@ -164,12 +182,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Actually delete
-    const { error: deleteError } = await supabase
+    const deleteQuery = supabase
       .from("bookings")
       .delete()
       .eq("status", "pending")
       .eq("payment_status", "pending")
-      .lt("created_at", new Date(Date.now() - maxAge * 60 * 1000).toISOString());
+      .or(
+        effectiveMaxAge
+          ? `created_at.lt.${new Date(Date.now() - effectiveMaxAge * 60 * 1000).toISOString()}`
+          : `and(payment_method.eq.bank_transfer,created_at.lt.${cutoffBank}),and(payment_method.neq.bank_transfer,created_at.lt.${cutoffCard})`
+      );
+
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       throw deleteError;

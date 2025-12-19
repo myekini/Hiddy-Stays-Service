@@ -10,13 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -24,6 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +45,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Search,
-  Eye,
   Building,
   MapPin,
   DollarSign,
@@ -53,9 +53,9 @@ import {
   Users,
   Bed,
   Bath,
-  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
-import { propertyService, Property, PropertyStats } from "@/services/propertyService";
+import { propertyService, Property } from "@/services/propertyService";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,16 +68,6 @@ const AdminPropertyManagement: React.FC = () => {
   const { session } = useAuth();
   const { toast } = useToast();
   const [properties, setProperties] = useState<Property[]>([]);
-  const [stats, setStats] = useState<PropertyStats>({
-    totalProperties: 0,
-    activeProperties: 0,
-    featuredProperties: 0,
-    totalRevenue: 0,
-    averageRating: 0,
-    averageOccupancy: 0,
-    newThisMonth: 0,
-    topPerforming: 0,
-  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -108,19 +98,9 @@ const AdminPropertyManagement: React.FC = () => {
     }
   }, [filterStatus, filterType, filterCountry, searchTerm, toast]);
 
-  const loadStats = useCallback(async () => {
-    try {
-      const statsData = await propertyService.getPropertyStats();
-      setStats(statsData);
-    } catch (error) {
-      console.error("Error loading stats:", error);
-    }
-  }, []);
-
   useEffect(() => {
     loadProperties();
-    loadStats();
-  }, [loadProperties, loadStats]);
+  }, [loadProperties]);
 
   const handlePropertyAction = async (
     propertyId: string,
@@ -182,11 +162,6 @@ const AdminPropertyManagement: React.FC = () => {
         title: "Success",
         description: `Property ${action}d successfully.`,
       });
-
-      // Refresh stats after a successful action
-      if (action === "delete" || action === "activate" || action === "deactivate") {
-        loadStats();
-      }
     } catch (error) {
       console.error(`Error performing ${action} on property:`, error);
       setProperties(originalProperties); // Revert on error
@@ -319,82 +294,15 @@ const AdminPropertyManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Property Management</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight">Property Management</h1>
+        <p className="text-sm text-muted-foreground">
           Manage all properties on the platform
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Properties
-            </CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalProperties}</div>
-            <p className="text-xs text-muted-foreground">
-              +{stats.newThisMonth} new this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Active Properties
-            </CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeProperties}</div>
-            <p className="text-xs text-muted-foreground">
-              {((stats.activeProperties / stats.totalProperties) * 100).toFixed(
-                1
-              )}
-              % active
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Featured Properties
-            </CardTitle>
-            <Star className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.featuredProperties}</div>
-            <p className="text-xs text-muted-foreground">Premium listings</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
-            <Star className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.averageRating.toFixed(1)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.topPerforming} top performing
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="sticky top-4 z-10 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+        <div className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -430,12 +338,12 @@ const AdminPropertyManagement: React.FC = () => {
               items={uniqueCountries.map((country: string) => ({ value: country, label: country }))}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Properties Table */}
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+        <CardHeader className="pb-3">
           <CardTitle>Properties ({properties.length})</CardTitle>
           <CardDescription>
             Manage property listings and settings
@@ -443,22 +351,22 @@ const AdminPropertyManagement: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <TableHead>Property</TableHead>
-                <TableHead>Host</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Price/Night</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Bookings</TableHead>
-                <TableHead>Rating</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Property</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Host</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Location</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Price/Night</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Status</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Bookings</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Rating</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {properties.map((property) => (
                 <TableRow key={property.id}>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div>
                       <div className="font-medium">{property.title}</div>
                       <div className="text-sm text-muted-foreground">
@@ -467,7 +375,7 @@ const AdminPropertyManagement: React.FC = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div>
                       <div className="font-medium">{property.host.name}</div>
                       <div className="text-sm text-muted-foreground">
@@ -475,18 +383,16 @@ const AdminPropertyManagement: React.FC = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div className="flex items-center gap-1">
                       <MapPin className="h-3 w-3 text-muted-foreground" />
                       <span className="text-sm">{property.location}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="font-medium">
-                      ${property.price_per_night}
-                    </div>
+                  <TableCell className="p-3 text-right">
+                    <div className="font-medium">${property.price_per_night}</div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div className="flex gap-1">
                       {property.is_active ? (
                         <Badge variant="outline" className="text-green-600">
@@ -502,97 +408,76 @@ const AdminPropertyManagement: React.FC = () => {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{(property as any).total_bookings}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell className="p-3 text-right">{(property as any).total_bookings}</TableCell>
+                  <TableCell className="p-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
                       <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                       <span className="text-sm">
                         {(property as any).average_rating?.toFixed?.(1) || "N/A"}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openPropertyDetails(property)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                  <TableCell className="p-3 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => openPropertyDetails(property)}>
+                          View details
+                        </DropdownMenuItem>
 
-                      {!property.is_active ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handlePropertyAction(property.id, "activate")
-                          }
-                        >
-                          <Building className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handlePropertyAction(property.id, "deactivate")
-                          }
-                        >
-                          <Building className="h-4 w-4" />
-                        </Button>
-                      )}
+                        <DropdownMenuSeparator />
+                        {!property.is_active ? (
+                          <DropdownMenuItem onSelect={() => handlePropertyAction(property.id, "activate")}>
+                            Activate
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onSelect={() => handlePropertyAction(property.id, "deactivate")}>
+                            Deactivate
+                          </DropdownMenuItem>
+                        )}
 
-                      {!property.is_featured ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handlePropertyAction(property.id, "feature")
-                          }
-                        >
-                          <Star className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handlePropertyAction(property.id, "unfeature")
-                          }
-                        >
-                          <Star className="h-4 w-4" />
-                        </Button>
-                      )}
+                        {!property.is_featured ? (
+                          <DropdownMenuItem onSelect={() => handlePropertyAction(property.id, "feature")}>
+                            Feature
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onSelect={() => handlePropertyAction(property.id, "unfeature")}>
+                            Unfeature
+                          </DropdownMenuItem>
+                        )}
 
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Property</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to permanently delete "
-                              {property.title}"? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() =>
-                                handlePropertyAction(property.id, "delete")
-                              }
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
+                        <DropdownMenuSeparator />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive">
                               Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Property</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to permanently delete "{property.title}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handlePropertyAction(property.id, "delete")}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

@@ -23,6 +23,16 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const resolvedParams = await params;
     const propertyId = resolvedParams.id;
@@ -41,7 +51,7 @@ export async function GET(
       );
     }
 
-    if (property.host_id !== user.id) {
+    if (property.host_id !== profile.id) {
       return NextResponse.json(
         { error: "You can only view bookings for your own properties" },
         { status: 403 }
@@ -132,7 +142,7 @@ export async function GET(
         },
         check_in_date: booking.check_in_date,
         check_out_date: booking.check_out_date,
-        nights: nights,
+        nights,
         guests_count: booking.guests_count,
         total_price: booking.total_amount || 0,
         status: booking.status,

@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
 
 interface RoleUpdate {
   userId: string;
-  role: "user" | "host" | "admin";
+  role: "user" | "host" | "admin" | "super_admin";
 }
 
 /**
@@ -60,7 +60,10 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id)
       .single();
 
-    if (adminCheckError || adminProfile?.role !== "admin") {
+    if (
+      adminCheckError ||
+      (adminProfile?.role !== "admin" && adminProfile?.role !== "super_admin")
+    ) {
       return NextResponse.json(
         { error: "Unauthorized - Admin access required" },
         { status: 403 }
@@ -87,15 +90,22 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!["user", "host", "admin"].includes(update.role)) {
+      if (!["user", "host", "admin", "super_admin"].includes(update.role)) {
         return NextResponse.json(
           { error: `Invalid role: ${update.role}` },
           { status: 400 }
         );
       }
 
+      if (update.role === "super_admin" && adminProfile?.role !== "super_admin") {
+        return NextResponse.json(
+          { error: "Only super_admin can assign super_admin" },
+          { status: 403 }
+        );
+      }
+
       // Prevent admin from changing their own role
-      if (update.userId === user.id && update.role !== "admin") {
+      if (update.userId === user.id && update.role !== adminProfile?.role) {
         return NextResponse.json(
           { error: "Cannot change your own admin role" },
           { status: 400 }
@@ -129,6 +139,10 @@ export async function POST(req: NextRequest) {
             user_metadata: {
               ...targetUser.user.user_metadata,
               role: update.role,
+              is_host:
+                update.role === "host" ||
+                update.role === "admin" ||
+                update.role === "super_admin",
             },
           });
 
@@ -145,7 +159,10 @@ export async function POST(req: NextRequest) {
           .from("profiles")
           .update({
             role: update.role,
-            is_host: update.role === "host" || update.role === "admin",
+            is_host:
+              update.role === "host" ||
+              update.role === "admin" ||
+              update.role === "super_admin",
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", update.userId);

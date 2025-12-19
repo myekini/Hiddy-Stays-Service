@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -26,12 +25,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -45,22 +51,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Search,
-  Filter,
-  MoreHorizontal,
-  Edit,
-  Trash2,
-  Eye,
   Calendar,
-  DollarSign,
-  Users,
-  MapPin,
-  Building,
-  User,
-  CheckCircle,
-  XCircle,
-  Clock,
-  AlertTriangle,
+  Search,
+  MoreHorizontal,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -71,7 +64,15 @@ interface Booking {
   guests_count: number;
   total_amount: number;
   status: "pending" | "confirmed" | "cancelled" | "completed";
-  payment_status: "pending" | "paid" | "refunded" | "failed";
+  payment_method?: string;
+  payment_status:
+    | "pending"
+    | "processing"
+    | "paid"
+    | "failed"
+    | "refunded"
+    | "partially_refunded"
+    | "disputed";
   created_at: string;
   updated_at: string;
   guest: {
@@ -95,32 +96,9 @@ interface Booking {
   cancellation_reason?: string;
 }
 
-interface BookingStats {
-  totalBookings: number;
-  confirmedBookings: number;
-  pendingBookings: number;
-  cancelledBookings: number;
-  completedBookings: number;
-  totalRevenue: number;
-  averageBookingValue: number;
-  newThisMonth: number;
-  upcomingBookings: number;
-}
-
 const AdminBookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
-  const [stats, setStats] = useState<BookingStats>({
-    totalBookings: 0,
-    confirmedBookings: 0,
-    pendingBookings: 0,
-    cancelledBookings: 0,
-    completedBookings: 0,
-    totalRevenue: 0,
-    averageBookingValue: 0,
-    newThisMonth: 0,
-    upcomingBookings: 0,
-  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -128,52 +106,34 @@ const AdminBookingManagement: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [bookingDetailsOpen, setBookingDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    loadBookings();
-  }, []);
+  const getAdminToken = async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      throw new Error("No auth token available");
+    }
+    return token;
+  };
 
-  useEffect(() => {
-    filterBookings();
-  }, [bookings, searchTerm, filterStatus, filterPaymentStatus]);
-
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Fetch bookings with related data
-      const { data: bookingsData, error } = await supabase
-        .from("bookings")
-        .select(
-          `
-          *,
-          guest:profiles!guest_id(
-            id,
-            first_name,
-            last_name,
-            email
-          ),
-          property:properties!property_id(
-            id,
-            title,
-            location,
-            price_per_night,
-            host:profiles!host_id(
-              id,
-              first_name,
-              last_name,
-              email
-            )
-          )
-        `
-        )
-        .order("created_at", { ascending: false });
+      const token = await getAdminToken();
+      const response = await fetch("/api/admin/bookings?limit=500", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (error) {
-        console.error("Supabase query error:", error);
-        throw error;
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message || payload?.error || "Failed to load bookings");
       }
 
-      // Transform data
+      const bookingsData = payload?.bookings || [];
       const transformedBookings: Booking[] = (bookingsData || []).map(
         (booking: any) => ({
           id: booking.id,
@@ -182,23 +142,29 @@ const AdminBookingManagement: React.FC = () => {
           guests_count: booking.guests_count,
           total_amount: booking.total_amount,
           status: booking.status,
+          payment_method: booking.payment_method,
           payment_status: booking.payment_status,
           created_at: booking.created_at,
           updated_at: booking.updated_at,
           guest: {
-            id: booking.guest?.id || "",
-            name: `${booking.guest?.first_name || ""} ${booking.guest?.last_name || ""}`.trim(),
-            email: booking.guest?.email || "",
+            id: booking.guest?.id || booking.guest_id || "",
+            name:
+              `${booking.guest?.first_name || ""} ${booking.guest?.last_name || ""}`
+                .trim() ||
+              `${booking.guest_name || ""}`.trim(),
+            email: booking.guest?.email || booking.guest_email || "",
           },
           host: {
-            id: booking.property?.host?.id || "",
-            name: `${booking.property?.host?.first_name || ""} ${booking.property?.host?.last_name || ""}`.trim(),
-            email: booking.property?.host?.email || "",
+            id: booking.host?.id || booking.host_id || "",
+            name: `${booking.host?.first_name || ""} ${booking.host?.last_name || ""}`.trim(),
+            email: booking.host?.email || "",
           },
           property: {
-            id: booking.property?.id || "",
+            id: booking.property?.id || booking.property_id || "",
             title: booking.property?.title || "",
-            location: booking.property?.location || "",
+            location:
+              `${booking.property?.city || ""}`.trim() ||
+              `${booking.property?.address || ""}`.trim(),
             price_per_night: booking.property?.price_per_night || 0,
           },
           payment_intent_id: booking.payment_intent_id,
@@ -208,46 +174,14 @@ const AdminBookingManagement: React.FC = () => {
       );
 
       setBookings(transformedBookings);
-      calculateStats(transformedBookings);
     } catch (error) {
       console.error("Error loading bookings:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const calculateStats = (bookingList: Booking[]) => {
-    const now = new Date();
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    const stats: BookingStats = {
-      totalBookings: bookingList.length,
-      confirmedBookings: bookingList.filter((b) => b.status === "confirmed")
-        .length,
-      pendingBookings: bookingList.filter((b) => b.status === "pending").length,
-      cancelledBookings: bookingList.filter((b) => b.status === "cancelled")
-        .length,
-      completedBookings: bookingList.filter((b) => b.status === "completed")
-        .length,
-      totalRevenue: bookingList.reduce((sum, b) => sum + b.total_amount, 0),
-      averageBookingValue:
-        bookingList.length > 0
-          ? bookingList.reduce((sum, b) => sum + b.total_amount, 0) /
-            bookingList.length
-          : 0,
-      newThisMonth: bookingList.filter(
-        (b) => new Date(b.created_at) >= thisMonth
-      ).length,
-      upcomingBookings: bookingList.filter(
-        (b) => b.status === "confirmed" && new Date(b.check_in_date) <= nextWeek
-      ).length,
-    };
-
-    setStats(stats);
-  };
-
-  const filterBookings = () => {
+  const filterBookings = useCallback(() => {
     let filtered = bookings;
 
     // Search filter
@@ -276,41 +210,102 @@ const AdminBookingManagement: React.FC = () => {
     }
 
     setFilteredBookings(filtered);
-  };
+  }, [bookings, filterPaymentStatus, filterStatus, searchTerm]);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
+
+  useEffect(() => {
+    filterBookings();
+  }, [filterBookings]);
 
   const handleBookingAction = async (bookingId: string, action: string) => {
     try {
-      let updateData: any = {};
+      const token = await getAdminToken();
 
-      switch (action) {
-        case "confirm":
-          updateData = { status: "confirmed" };
-          break;
-        case "cancel":
-          updateData = {
-            status: "cancelled",
-            cancellation_reason: "Cancelled by admin",
-          };
-          break;
-        case "complete":
-          updateData = { status: "completed" };
-          break;
-        case "refund":
-          // Handle refund logic
-          updateData = {
-            payment_status: "refunded",
-            refund_amount: 0, // Would need to calculate
-          };
-          break;
+      if (action === "confirm" || action === "complete") {
+        const nextStatus = action === "confirm" ? "confirmed" : "completed";
+        const response = await fetch("/api/admin/bookings", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            bookingId,
+            updates: { status: nextStatus },
+          }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || `Failed to ${action} booking`);
+        }
       }
 
-      if (Object.keys(updateData).length > 0) {
-        const { error } = await supabase
-          .from("bookings")
-          .update(updateData)
-          .eq("id", bookingId);
+      if (action === "cancel") {
+        const response = await fetch("/api/admin/bookings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            bookingId,
+            action: "cancel",
+            reason: "Cancelled by admin",
+          }),
+        });
 
-        if (error) throw error;
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || "Failed to cancel booking");
+        }
+      }
+
+      if (action === "mark_paid") {
+        const response = await fetch("/api/admin/bookings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            bookingId,
+            action: "mark_paid",
+            reason: "Marked as paid by admin",
+          }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || "Failed to mark as paid");
+        }
+      }
+
+      if (action === "refund") {
+        const booking = bookings.find((b) => b.id === bookingId);
+        const refundAmount = booking?.total_amount || 0;
+
+        const response = await fetch("/api/admin/bookings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            bookingId,
+            action: "refund",
+            reason: "Refund processed by admin",
+            refundAmount,
+          }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || "Failed to refund booking");
+        }
       }
 
       // Reload bookings
@@ -401,77 +396,24 @@ const AdminBookingManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Booking Management</h1>
-        <p className="text-muted-foreground">
-          Manage all bookings and reservations
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Bookings
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalBookings}</div>
-            <p className="text-xs text-muted-foreground">
-              +{stats.newThisMonth} new this month
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Booking Management</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage all bookings and reservations
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.confirmedBookings}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.upcomingBookings} upcoming
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${stats.totalRevenue.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              ${stats.averageBookingValue.toFixed(0)} avg booking
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingBookings}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting confirmation
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {filteredBookings.length} shown
+            <span className="mx-2">•</span>
+            {bookings.length} total
+          </div>
+        </div>
       </div>
 
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="sticky top-4 z-10 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+        <div className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -496,10 +438,7 @@ const AdminBookingManagement: React.FC = () => {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select
-              value={filterPaymentStatus}
-              onValueChange={setFilterPaymentStatus}
-            >
+            <Select value={filterPaymentStatus} onValueChange={setFilterPaymentStatus}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by payment" />
               </SelectTrigger>
@@ -512,12 +451,12 @@ const AdminBookingManagement: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Bookings Table */}
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+        <CardHeader className="pb-3">
           <CardTitle>Bookings ({filteredBookings.length})</CardTitle>
           <CardDescription>
             Manage booking statuses and payments
@@ -525,27 +464,27 @@ const AdminBookingManagement: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <TableHead>Booking ID</TableHead>
-                <TableHead>Guest</TableHead>
-                <TableHead>Property</TableHead>
-                <TableHead>Dates</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Booking ID</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Guest</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Property</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Dates</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Amount</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Status</TableHead>
+                <TableHead className="h-10 px-3 text-xs">Payment</TableHead>
+                <TableHead className="h-10 px-3 text-xs text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredBookings.map((booking) => (
                 <TableRow key={booking.id}>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div className="font-mono text-sm">
                       {booking.id.slice(0, 8)}...
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div>
                       <div className="font-medium">{booking.guest.name}</div>
                       <div className="text-sm text-muted-foreground">
@@ -553,7 +492,7 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div>
                       <div className="font-medium">
                         {booking.property.title}
@@ -563,7 +502,7 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">
                     <div className="text-sm">
                       <div>
                         {new Date(booking.check_in_date).toLocaleDateString()}
@@ -581,114 +520,108 @@ const AdminBookingManagement: React.FC = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="p-3 text-right">
                     <div className="font-medium">${booking.total_amount}</div>
                     <div className="text-sm text-muted-foreground">
                       {booking.guests_count} guests
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                  <TableCell>
+                  <TableCell className="p-3">{getStatusBadge(booking.status)}</TableCell>
+                  <TableCell className="p-3">
                     {getPaymentStatusBadge(booking.payment_status)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openBookingDetails(booking)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-
-                      {booking.status === "pending" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handleBookingAction(booking.id, "confirm")
-                          }
-                        >
-                          <CheckCircle className="h-4 w-4" />
+                  <TableCell className="p-3 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                      )}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => openBookingDetails(booking)}>
+                          View details
+                        </DropdownMenuItem>
 
-                      {booking.status === "confirmed" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handleBookingAction(booking.id, "complete")
-                          }
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {booking.status !== "cancelled" &&
-                        booking.status !== "completed" && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Cancel Booking
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to cancel this booking?
-                                  This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() =>
-                                    handleBookingAction(booking.id, "cancel")
-                                  }
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Cancel Booking
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                        {booking.status === "pending" && (
+                          <DropdownMenuItem onSelect={() => handleBookingAction(booking.id, "confirm")}>
+                            Confirm booking
+                          </DropdownMenuItem>
                         )}
 
-                      {booking.payment_status === "paid" && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <DollarSign className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Process Refund
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to process a refund for
-                                this booking?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() =>
-                                  handleBookingAction(booking.id, "refund")
-                                }
-                              >
-                                Process Refund
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
+                        {booking.payment_method === "bank_transfer" &&
+                          booking.payment_status === "pending" &&
+                          booking.status !== "cancelled" &&
+                          booking.status !== "completed" && (
+                            <DropdownMenuItem onSelect={() => handleBookingAction(booking.id, "mark_paid")}>
+                              Mark as paid
+                            </DropdownMenuItem>
+                          )}
+
+                        {booking.status === "confirmed" && (
+                          <DropdownMenuItem onSelect={() => handleBookingAction(booking.id, "complete")}>
+                            Mark as completed
+                          </DropdownMenuItem>
+                        )}
+
+                        {(booking.status !== "cancelled" && booking.status !== "completed") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                  Cancel booking
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to cancel this booking? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleBookingAction(booking.id, "cancel")}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Cancel Booking
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+
+                        {booking.payment_status === "paid" && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem>
+                                  Process refund
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Process Refund</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to process a refund for this booking?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleBookingAction(booking.id, "refund")}>
+                                    Process Refund
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

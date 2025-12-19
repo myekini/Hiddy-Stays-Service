@@ -25,6 +25,16 @@ export async function POST(
     const resolvedParams = await params;
     const bookingId = resolvedParams.id;
 
+    const { data: hostProfile, error: hostProfileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (hostProfileError || !hostProfile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
+    }
+
     // Get booking details
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
@@ -33,6 +43,7 @@ export async function POST(
         id,
         property_id,
         guest_id,
+        host_id,
         status,
         check_in_date,
         check_out_date,
@@ -53,7 +64,7 @@ export async function POST(
     }
 
     // Verify user is the property host
-    if (booking.properties.host_id !== user.id) {
+    if (booking.properties.host_id !== hostProfile.id && booking.host_id !== hostProfile.id) {
       return NextResponse.json(
         { error: "Only the property host can accept bookings" },
         { status: 403 }
@@ -97,7 +108,6 @@ export async function POST(
       .eq("id", bookingId);
 
     if (updateError) {
-      console.error("Update error:", updateError);
       return NextResponse.json(
         { error: "Failed to accept booking" },
         { status: 500 }
@@ -130,8 +140,7 @@ export async function POST(
         property_title: booking.properties.title,
       },
     });
-  } catch (error) {
-    console.error("Error accepting booking:", error);
+  } catch {
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

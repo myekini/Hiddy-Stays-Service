@@ -68,7 +68,7 @@ export default function BookingModalStack({
 
   const totalNights = checkIn && checkOut ? differenceInDays(new Date(checkOut), new Date(checkIn)) : 0;
   const subtotal = property.price_per_night * totalNights;
-  const cleaningFee = property.cleaning_fee || 0;
+  const cleaningFee = property.cleaning_fee || 100;
   const serviceFee = property.service_fee_percentage ? Math.round(subtotal * (property.service_fee_percentage / 100)) : 0;
   const totalAmount = subtotal + cleaningFee + serviceFee;
 
