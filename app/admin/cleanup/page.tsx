@@ -79,11 +79,11 @@ export default function CleanupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Database Cleanup</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-foreground">Database Cleanup</h1>
+          <p className="text-muted-foreground mt-2">
             Manage cancelled bookings and keep the database clean
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function CleanupPage() {
             </div>
 
             {preview && (
-              <div className="border rounded-lg p-4 bg-gray-50">
+              <div className="border border-border/50 rounded-lg p-4 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">Cleanup Preview</h3>
                   <Badge variant={preview.count > 0 ? "destructive" : "secondary"}>
@@ -123,7 +123,7 @@ export default function CleanupPage() {
                   </Badge>
                 </div>
                 
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-muted-foreground mb-3">
                   Cutoff time: {new Date(preview.cutoff_time).toLocaleString()}
                 </p>
 
@@ -132,12 +132,12 @@ export default function CleanupPage() {
                     <p className="text-sm font-medium">Bookings to be deleted:</p>
                     <div className="max-h-40 overflow-y-auto space-y-1">
                       {preview.bookings_to_delete.map((booking) => (
-                        <div key={booking.id} className="text-xs bg-white p-2 rounded border">
+                        <div key={booking.id} className="text-xs bg-card p-2 rounded border border-border/50">
                           <div className="font-medium">{booking.guest_name}</div>
-                          <div className="text-gray-500">
+                          <div className="text-muted-foreground">
                             {booking.check_in_date} to {booking.check_out_date}
                           </div>
-                          <div className="text-gray-400">
+                          <div className="text-muted-foreground/80">
                             Cancelled: {new Date(booking.cancelled_at).toLocaleString()}
                           </div>
                         </div>
@@ -145,14 +145,26 @@ export default function CleanupPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-green-600">No old cancelled bookings found.</p>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300">No old cancelled bookings found.</p>
                 )}
               </div>
             )}
 
             {result && (
-              <Alert className={result.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-                <AlertDescription className={result.success ? "text-green-800" : "text-red-800"}>
+              <Alert
+                className={
+                  result.success
+                    ? "border-emerald-200/60 bg-emerald-50/60 dark:border-emerald-800/50 dark:bg-emerald-950/20"
+                    : "border-red-200/60 bg-red-50/60 dark:border-red-800/50 dark:bg-red-950/20"
+                }
+              >
+                <AlertDescription
+                  className={
+                    result.success
+                      ? "text-emerald-800 dark:text-emerald-200"
+                      : "text-red-800 dark:text-red-200"
+                  }
+                >
                   {result.message}
                   {result.deleted_count !== undefined && (
                     <div className="mt-2">
@@ -163,13 +175,12 @@ export default function CleanupPage() {
               </Alert>
             )}
 
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-muted-foreground space-y-1">
               <p><strong>How it works:</strong></p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Only deletes bookings with status "cancelled"</li>
-                <li>Only deletes bookings cancelled more than 24 hours ago</li>
-                <li>Calendar availability automatically excludes cancelled bookings</li>
-                <li>This cleanup keeps the database tidy without affecting functionality</li>
+                <li>Only deletes bookings older than the cutoff date</li>
+                <li>Uses soft delete via database cleanup function</li>
               </ul>
             </div>
           </CardContent>

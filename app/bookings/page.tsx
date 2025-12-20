@@ -7,7 +7,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 export default function BookingsPage() {
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <ErrorBoundary>
             <UserBookingDashboard />

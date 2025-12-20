@@ -30,7 +30,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-foreground tracking-tighter mb-4"
         >
-          Skyline Suite <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">in Surrey, BC</span>
+          Book Amazing Stays <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">Across Canada</span>
         </motion.h1>
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
@@ -38,7 +38,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           transition={{ delay: 0.2, duration: 0.6 }}
           className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto font-medium leading-relaxed tracking-tight"
         >
-          Book direct. No platform fees. Secure checkout.
+          Book directly with hosts — zero platform fees, instant confirmation.
         </motion.p>
 
         <motion.div
@@ -48,10 +48,10 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           className="mt-5 flex flex-wrap justify-center gap-2"
         >
           <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
-            Zero platform fees
+            Verified properties
           </div>
           <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
-            Secure payments
+            Secure checkout
           </div>
           <div className="px-3 py-1 rounded-full bg-secondary/60 border border-border/60 text-xs font-semibold text-foreground">
             Instant confirmation

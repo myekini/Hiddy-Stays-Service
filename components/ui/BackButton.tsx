@@ -30,7 +30,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       variant="ghost"
       size="sm"
       onClick={handleBack}
-      className={`flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 ${className}`}
+      className={`flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 ${className}`}
     >
       <ArrowLeft className="w-4 h-4" />
       {children}

@@ -47,10 +47,10 @@ export const BookingConfirmation = ({
   googleMapsUrl,
 }: BookingConfirmationProps) => {
   return (
-    <EmailLayout preview={`Your stay at ${propertyName} is confirmed!`}>
+    <EmailLayout preview={`Your stay at ${propertyName} is confirmed`}>
       {/* Hero Title Section */}
       <Section style={heroTitleSection}>
-        <Text style={heroTitle}>Your stay is confirmed 🏠</Text>
+        <Text style={heroTitle}>Your stay is confirmed</Text>
       </Section>
 
       {/* Property Image */}
@@ -68,9 +68,9 @@ export const BookingConfirmation = ({
 
       {/* Greeting */}
       <Section style={greetingSection}>
-        <Text style={greeting}>Hey {guestName} 🎉</Text>
+        <Text style={greeting}>Hi {guestName},</Text>
         <Text style={mainMessage}>
-          Your stay at <strong>{propertyName}</strong> is confirmed.
+          Your booking at <strong>{propertyName}</strong> is confirmed and paid.
         </Text>
       </Section>
 
@@ -155,7 +155,7 @@ export const BookingConfirmation = ({
       {/* Footer Message */}
       <Section style={footerMessageSection}>
         <Text style={footerMessageText}>
-          Need help? Contact us anytime at{' '}
+          Questions? Contact us at{' '}
           <a href="mailto:admin@hiddystays.com" style={emailLink}>
             admin@hiddystays.com
           </a>

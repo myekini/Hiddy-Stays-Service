@@ -16,12 +16,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
+  AlertCircle,
+  CheckCircle,
   Loader2,
   Lock,
   Eye,
   EyeOff,
-  CheckCircle,
-  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import LogoImage from "@/components/LogoImage";
@@ -114,28 +114,28 @@ function ResetPasswordContent() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <Card className="shadow-sm border">
+          <Card className="shadow-sm border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
             <CardContent className="px-6 py-8">
               <div className="text-center">
-<div className="mx-auto w-16 h-16 bg-brand-50 dark:bg-brand-950/30 rounded-full flex items-center justify-center mb-4">
-<CheckCircle className="h-8 w-8 text-brand-600" />
+                <div className="mx-auto w-16 h-16 bg-brand-50 dark:bg-brand-950/30 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="h-8 w-8 text-brand-600 dark:text-brand-400" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
                   Password Updated!
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-muted-foreground mb-6">
                   Your password has been successfully updated. You can now sign
                   in with your new password.
                 </p>
                 <div className="space-y-3">
-<Link href="/auth">
+                  <Link href="/auth">
                     <Button variant="brand" className="w-full">
                       Sign In Now
                     </Button>
                   </Link>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Redirecting automatically in 3 seconds...
                   </p>
                 </div>
@@ -148,12 +148,12 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back Button */}
         <Link
           href="/auth"
-className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 group"
+          className="inline-flex items-center text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 mb-6 group"
         >
           <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Sign In
@@ -161,22 +161,22 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
 
         {/* Logo Section */}
         <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-white dark:bg-card rounded-lg shadow-sm mb-4">
+          <div className="inline-block p-4 bg-card rounded-lg shadow-sm mb-4 border border-border/50">
             <LogoImage size="lg" />
           </div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">Create New Password</p>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+          <p className="text-foreground font-medium">Create New Password</p>
+          <p className="text-muted-foreground text-sm mt-1">
             Almost there! Choose a strong password
           </p>
         </div>
 
         {/* Auth Card */}
-        <Card className="shadow-sm border">
+        <Card className="shadow-sm border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
           <CardHeader className="text-center pb-6">
-            <CardTitle className="text-2xl font-bold text-gray-800">
+            <CardTitle className="text-2xl font-bold text-foreground">
               Set New Password
             </CardTitle>
-            <CardDescription className="text-gray-600">
+            <CardDescription className="text-muted-foreground">
               Enter your new password below
             </CardDescription>
           </CardHeader>
@@ -184,11 +184,11 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
           <CardContent className="px-6 pb-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700">
+                <Label htmlFor="password" className="text-foreground">
                   New Password
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -204,7 +204,7 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -216,11 +216,11 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirm-password" className="text-gray-700">
+                <Label htmlFor="confirm-password" className="text-foreground">
                   Confirm New Password
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="confirm-password"
                     type={showConfirmPassword ? "text" : "password"}
@@ -233,7 +233,7 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -246,12 +246,12 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
 
               {/* Password Requirements */}
               {passwordErrors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
                   <div className="flex items-start space-x-2">
-                    <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-red-800">
+                    <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-destructive">
                       <p className="font-medium mb-1">Password Requirements:</p>
-                      <ul className="space-y-1 text-red-700">
+                      <ul className="space-y-1 text-destructive/90">
                         {passwordErrors.map((error, index) => (
                           <li key={index}>• {error}</li>
                         ))}
@@ -263,7 +263,7 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
 
               <Button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
                 disabled={isLoading || passwordErrors.length > 0}
               >
                 {isLoading ? (
@@ -278,11 +278,11 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
             </form>
 
             {/* Footer */}
-            <div className="text-center mt-6 text-gray-500 text-sm">
+            <div className="text-center mt-6 text-muted-foreground text-sm">
               Remember your password?{" "}
               <Link
                 href="/auth"
-                className="text-blue-600 hover:text-blue-700 underline"
+                className="text-primary hover:text-primary/80 underline"
               >
                 Sign in instead
               </Link>
@@ -298,10 +298,12 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-400/10 dark:to-purple-400/10 flex items-center justify-center ring-1 ring-blue-500/20 dark:ring-blue-400/20 mx-auto mb-4">
+              <LogoImage variant="icon" size="md" />
+            </div>
+            <p className="text-muted-foreground">Loading...</p>
           </div>
         </div>
       }

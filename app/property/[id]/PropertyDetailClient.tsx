@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DateRange } from "react-day-picker";
 import Image from "next/image";
@@ -83,6 +83,9 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
   const router = useRouter();
   const { toast } = useToast();
 
+  const blurDataURL =
+    "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10'%3E%3Crect width='16' height='10' fill='%23e2e8f0'/%3E%3C/svg%3E";
+
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -90,34 +93,39 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
+  const nextImageToPreload = useMemo(() => {
+    if (!property.images?.length) return null;
+    return property.images[(currentImageIndex + 1) % property.images.length];
+  }, [property.images, currentImageIndex]);
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     toast({
-      title: "Link copied!",
-      description: "Property link has been copied to clipboard",
+      title: "Link copied ✓",
+      description: "Share this property with friends",
     });
   };
 
   const handleFavorite = () => {
     setIsFavorite((prev) => !prev);
     toast({
-      title: isFavorite ? "Removed from favorites" : "Added to favorites",
+      title: isFavorite ? "Removed from saved" : "Saved ✓",
       description: isFavorite
-        ? "Property removed from your favorites"
-        : "Property added to your favorites",
+        ? "Property removed from your saved list"
+        : "View your saved properties anytime",
     });
   };
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900 dark:to-slate-950">
-        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-50">
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted/40">
+        <div className="sticky top-0 bg-background/95 backdrop-blur-xl border-b border-border/50 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
               <Button
                 variant="ghost"
                 onClick={() => router.back()}
-                className="flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 font-medium transition-colors -ml-2"
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground font-medium transition-colors -ml-2"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span className="hidden sm:inline">Back to Properties</span>
@@ -129,7 +137,7 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                   variant="ghost"
                   size="sm"
                   onClick={handleShare}
-                  className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
+                  className="p-2.5 hover:bg-muted/60 rounded-xl transition-all duration-200"
                 >
                   <Share className="w-5 h-5" />
                 </Button>
@@ -137,7 +145,7 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                   variant="ghost"
                   size="sm"
                   onClick={handleFavorite}
-                  className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
+                  className="p-2.5 hover:bg-muted/60 rounded-xl transition-all duration-200"
                 >
                   <Heart
                     className={`w-5 h-5 transition-colors ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
@@ -154,15 +162,31 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-[2rem] blur-2xl opacity-50 dark:opacity-20 pointer-events-none" />
 
-                <div className="relative bg-slate-100 dark:bg-slate-900 rounded-[2rem] overflow-hidden aspect-[16/10] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+                <div className="relative bg-muted rounded-[2rem] overflow-hidden aspect-[16/10] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
                   <Image
                     src={property.images[currentImageIndex]}
                     alt={property.title}
                     fill
                     priority
+                    fetchPriority="high"
                     sizes="(max-width: 1024px) 100vw, 66vw"
+                    quality={75}
+                    placeholder="blur"
+                    blurDataURL={blurDataURL}
                     className="object-cover transition-transform duration-700 hover:scale-105"
                   />
+
+                  {nextImageToPreload ? (
+                    <Image
+                      src={nextImageToPreload}
+                      alt=""
+                      width={1}
+                      height={1}
+                      quality={60}
+                      className="hidden"
+                      aria-hidden="true"
+                    />
+                  ) : null}
 
                   {property.images.length > 1 && (
                     <>
@@ -196,7 +220,7 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                           e.stopPropagation();
                           setIsGalleryOpen(true);
                         }}
-                        className="bg-white/90 hover:bg-white text-slate-900 backdrop-blur-xl shadow-lg border border-white/20 rounded-full px-5 py-2 text-xs font-semibold tracking-wide transition-all duration-200"
+                        className="bg-background/90 hover:bg-background text-foreground backdrop-blur-xl shadow-lg border border-border/40 rounded-full px-5 py-2 text-xs font-semibold tracking-wide transition-all duration-200"
                       >
                         View all photos
                       </Button>
@@ -212,7 +236,7 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                           "_blank"
                         );
                       }}
-                      className="bg-white/90 hover:bg-white text-slate-900 backdrop-blur-xl shadow-lg border border-white/20 rounded-full px-5 py-2 text-xs font-semibold tracking-wide transition-all duration-200"
+                      className="bg-background/90 hover:bg-background text-foreground backdrop-blur-xl shadow-lg border border-border/40 rounded-full px-5 py-2 text-xs font-semibold tracking-wide transition-all duration-200"
                     >
                       <MapPin className="w-3 h-3 mr-2" />
                       View Map
@@ -229,11 +253,20 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                       onClick={() => setCurrentImageIndex(index)}
                       className={`relative w-24 h-24 flex-shrink-0 rounded-2xl overflow-hidden transition-all duration-300 ${
                         currentImageIndex === index
-                          ? "ring-2 ring-slate-900 dark:ring-white ring-offset-2 dark:ring-offset-slate-950 opacity-100 scale-105"
+                          ? "ring-2 ring-ring ring-offset-2 ring-offset-background opacity-100 scale-105"
                           : "opacity-60 hover:opacity-100 hover:scale-105"
                       }`}
                     >
-                      <Image src={image} alt={`${property.title} - ${index + 1}`} fill sizes="96px" className="object-cover" />
+                      <Image
+                        src={image}
+                        alt={`${property.title} - ${index + 1}`}
+                        fill
+                        sizes="96px"
+                        quality={60}
+                        placeholder="blur"
+                        blurDataURL={blurDataURL}
+                        className="object-cover"
+                      />
                     </button>
                   ))}
                 </div>
@@ -271,6 +304,9 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                         alt={`${property.title} - ${currentImageIndex + 1}`}
                         fill
                         sizes="(max-width: 1024px) 100vw, 1024px"
+                        quality={75}
+                        placeholder="blur"
+                        blurDataURL={blurDataURL}
                         className="object-contain"
                       />
 
@@ -315,7 +351,16 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                               )}
                               aria-label={`View photo ${index + 1}`}
                             >
-                              <Image src={image} alt="" fill sizes="96px" className="object-cover" />
+                              <Image
+                                src={image}
+                                alt=""
+                                fill
+                                sizes="96px"
+                                quality={60}
+                                placeholder="blur"
+                                blurDataURL={blurDataURL}
+                                className="object-cover"
+                              />
                             </button>
                           ))}
                         </div>
@@ -334,10 +379,10 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                           <Star className="w-3 h-3 fill-current" /> Featured
                         </div>
                       )}
-                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
+                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-tight">
                         {property.title}
                       </h1>
-                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                      <div className="flex items-center gap-2 text-muted-foreground mt-2 font-medium">
                         <MapPin className="w-4 h-4" />
                         <span>{property.address}</span>
                       </div>
@@ -345,43 +390,43 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
 
                     {property.rating && (
                       <div className="hidden sm:flex flex-col items-end">
-                        <div className="flex items-center gap-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-1.5 rounded-lg font-bold shadow-lg">
+                        <div className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-bold shadow-lg">
                           <Star className="w-3.5 h-3.5 fill-current" />
                           {property.rating.toFixed(1)}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                        <div className="text-xs text-muted-foreground mt-1 font-medium">
                           {property.review_count} reviews
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 sm:gap-8 py-6 border-y border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-4 sm:gap-8 py-6 border-y border-border">
                     <div className="flex items-center gap-3">
-                      <Users className="w-5 h-5 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        <span className="font-bold text-slate-900 dark:text-white">{property.max_guests}</span> Guests
+                      <Users className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        <span className="font-bold text-foreground">{property.max_guests}</span> Guests
                       </span>
                     </div>
-                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <span className="text-muted-foreground/60">•</span>
                     <div className="flex items-center gap-3">
-                      <Bed className="w-5 h-5 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        <span className="font-bold text-slate-900 dark:text-white">{property.bedrooms}</span> Bedrooms
+                      <Bed className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        <span className="font-bold text-foreground">{property.bedrooms}</span> Bedrooms
                       </span>
                     </div>
-                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <span className="text-muted-foreground/60">•</span>
                     <div className="flex items-center gap-3">
-                      <Bath className="w-5 h-5 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        <span className="font-bold text-slate-900 dark:text-white">{property.bathrooms}</span> Baths
+                      <Bath className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        <span className="font-bold text-foreground">{property.bathrooms}</span> Baths
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">About this space</h3>
+                  <h3 className="text-xl font-bold text-foreground tracking-tight">About this space</h3>
                   {(() => {
                     const description =
                       property.description ||
@@ -393,14 +438,14 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                         <div className="relative">
                           <p
                             className={cn(
-                              "text-base sm:text-[15px] text-slate-600 dark:text-slate-400 leading-relaxed",
+                              "text-base sm:text-[15px] text-muted-foreground leading-relaxed",
                               !isDescriptionExpanded && isLong && "max-h-[7.5rem] overflow-hidden"
                             )}
                           >
                             {description}
                           </p>
                           {!isDescriptionExpanded && isLong && (
-                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50 dark:from-slate-900 to-transparent" />
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
                           )}
                         </div>
 
@@ -408,7 +453,7 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                           <Button
                             type="button"
                             variant="ghost"
-                            className="h-auto p-0 text-slate-900 dark:text-white hover:bg-transparent hover:underline underline-offset-4"
+                            className="h-auto p-0 text-foreground hover:bg-transparent hover:underline underline-offset-4"
                             onClick={() => setIsDescriptionExpanded((v) => !v)}
                           >
                             {isDescriptionExpanded ? "Show less" : "Read more"}
@@ -420,17 +465,17 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                 </div>
 
                 <div className="space-y-6">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Amenities</h3>
+                  <h3 className="text-xl font-bold text-foreground tracking-tight">Amenities</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {property.amenities.map((amenity, index) => {
                       const amenityKey = amenity.toLowerCase().trim();
                       const Icon = amenityIcons[amenityKey] || CheckCircle;
                       return (
                         <div key={index} className="flex items-center gap-3 group">
-                          <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
-                            <Icon className="w-5 h-5 text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
+                          <div className="w-10 h-10 rounded-full bg-muted/60 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                            <Icon className="w-5 h-5 text-muted-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                           </div>
-                          <span className="text-sm font-medium text-slate-600 dark:text-slate-300 capitalize">{amenity}</span>
+                          <span className="text-sm font-medium text-muted-foreground capitalize">{amenity}</span>
                         </div>
                       );
                     })}
@@ -443,17 +488,17 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
               <div className="lg:sticky lg:top-24 space-y-6">
                 <Card
                   id="availability"
-                  className="p-6 space-y-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-2xl ring-1 ring-black/5 dark:ring-white/10"
+                  className="p-6 space-y-6 bg-card/80 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-2xl ring-1 ring-black/5 dark:ring-white/10"
                 >
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Book your stay</h3>
+                      <h3 className="text-xl font-bold text-foreground tracking-tight">Book your stay</h3>
                       <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full">
                         Best Price
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-1 border border-slate-100 dark:border-slate-700/50">
+                    <div className="bg-muted/40 rounded-xl p-1 border border-border/50">
                       <AvailabilityCalendar
                         propertyId={property.id}
                         onRangeSelect={(range) => setDateRange(range)}
@@ -464,13 +509,13 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
 
                     <Button
                       size="lg"
-                      className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white py-6 rounded-xl font-bold text-base transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-6 rounded-xl font-bold text-base transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                       onClick={() => setIsBookingModalOpen(true)}
                     >
                       Check Availability
                     </Button>
 
-                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                       <Shield className="w-4 h-4" />
                       <span>You won't be charged yet</span>
                     </div>
@@ -478,22 +523,22 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                 </Card>
 
                 {property.host && (
-                  <Card className="p-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-slate-200/70 dark:border-slate-800/70 rounded-2xl ring-1 ring-black/5 dark:ring-white/10">
-                    <div className="space-y-5">
+                  <Card className="p-6 bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl ring-1 ring-black/5 dark:ring-white/10">
+                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Meet your host</h3>
+                        <h3 className="text-lg font-bold text-foreground tracking-tight">Meet your host</h3>
                         {property.host.verified && (
                           <Badge
                             variant="secondary"
-                            className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800/50 text-[10px] font-bold uppercase tracking-wider"
+                            className="bg-blue-50/70 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100/60 dark:border-blue-800/50 text-[10px] font-bold uppercase tracking-wider"
                           >
                             Verified
                           </Badge>
                         )}
                       </div>
 
-                      <div className="flex items-start gap-4">
-                        <Avatar className="h-14 w-14 ring-2 ring-slate-100 dark:ring-slate-800 shadow-sm">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
                           <AvatarImage
                             src={property.host.avatar || "/assets/hiddy.png"}
                             alt={property.host.name}
@@ -504,71 +549,42 @@ export default function PropertyDetailClient({ property }: PropertyDetailClientP
                               img.src = "/assets/hiddy.png";
                             }}
                           />
-                          <AvatarFallback className="bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-700 dark:text-slate-300 text-lg font-bold">
+                          <AvatarFallback className="bg-muted text-foreground text-base font-bold">
                             {property.host.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex-1">
-                          <div className="text-base font-bold text-slate-900 dark:text-white leading-tight">{property.host.name}</div>
-                          <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Superhost • Joined 2024</div>
 
-                          <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
-                            <a
-                              href="mailto:admin@hiddystays.com"
-                              className="inline-flex items-center gap-2 hover:text-slate-900 dark:hover:text-white transition-colors"
-                            >
-                              <Mail className="w-4 h-4" />
-                              <span>admin@hiddystays.com</span>
-                            </a>
-                            <a
-                              href="tel:+16723392121"
-                              className="flex items-center gap-2 hover:text-slate-900 dark:hover:text-white transition-colors"
-                            >
-                              <Phone className="w-4 h-4" />
-                              <span>+1 (672) 339-2121</span>
-                            </a>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-base font-semibold text-foreground truncate">{property.host.name}</div>
+                            <span className="text-xs text-muted-foreground">• Superhost</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                              <span className="font-medium text-foreground">
+                                {Number(property.rating ?? 4.9).toFixed(1)}
+                              </span>
+                            </span>
+                            <span>{property.review_count || 128} reviews</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 p-3 text-center">
-                          <div className="flex items-center justify-center gap-1 text-base font-bold text-slate-900 dark:text-white">
-                            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                            {property.rating || 4.9}
-                          </div>
-                          <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Rating</div>
-                        </div>
-                        <div className="rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 p-3 text-center">
-                          <div className="text-base font-bold text-slate-900 dark:text-white">{property.review_count || 128}</div>
-                          <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Reviews</div>
-                        </div>
-                        <div className="rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 p-3 text-center">
-                          <div className="text-base font-bold text-slate-900 dark:text-white">2+</div>
-                          <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">Hosting</div>
-                        </div>
+                      <div className="rounded-xl bg-muted/40 border border-border/50 px-4 py-3">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {property.host.name === "Hiddy"
+                            ? "Fast replies, smooth check-in, and local recommendations when you need them."
+                            : "Fast replies and a smooth check-in—reach out anytime."}
+                        </p>
                       </div>
 
-                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                        {property.host.name === "Hiddy"
-                          ? "Premium stays, zero fees. Fast replies, smooth check-in, and local recommendations when you need them."
-                          : "Your host is here to help with a smooth check-in and a great stay."}
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="flex items-center gap-2 rounded-xl" asChild>
-                          <a href="mailto:admin@hiddystays.com">
-                            <Mail className="w-4 h-4" />
-                            Message
-                          </a>
-                        </Button>
-                        <Button variant="outline" className="flex items-center gap-2 rounded-xl" asChild>
-                          <a href="tel:+16723392121">
-                            <Phone className="w-4 h-4" />
-                            Call
-                          </a>
-                        </Button>
-                      </div>
+                      <Button className="w-full flex items-center gap-2 rounded-xl" asChild>
+                        <a href="mailto:admin@hiddystays.com">
+                          <Mail className="w-4 h-4" />
+                          Message host
+                        </a>
+                      </Button>
                     </div>
                   </Card>
                 )}

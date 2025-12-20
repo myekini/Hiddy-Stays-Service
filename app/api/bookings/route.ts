@@ -2,6 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { unifiedEmailService } from "@/lib/unified-email-service";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientUpstreamError = (message?: string | null) => {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes("502") ||
+    m.includes("503") ||
+    m.includes("504") ||
+    m.includes("bad gateway") ||
+    m.includes("cloudflare") ||
+    m.includes("gateway")
+  );
+};
+
+async function withRetry<T>(
+  fn: () => PromiseLike<T>,
+  opts: { retries: number; baseDelayMs: number }
+): Promise<T> {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt++;
+      const message = err instanceof Error ? err.message : String(err);
+      const canRetry = attempt <= opts.retries && isTransientUpstreamError(message);
+      if (!canRetry) throw err;
+      await sleep(opts.baseDelayMs * attempt);
+    }
+  }
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -43,18 +77,25 @@ export async function GET(request: NextRequest) {
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser(token);
+    } = await withRetry(
+      () => supabase.auth.getUser(token),
+      { retries: 2, baseDelayMs: 350 }
+    );
 
     if (authError || !user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
     // Get profile (for role and profile.id)
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .eq("user_id", user.id)
-      .single();
+    const { data: profile, error: profileError } = await withRetry(
+      () =>
+        supabase
+          .from("profiles")
+          .select("id, role")
+          .eq("user_id", user.id)
+          .single(),
+      { retries: 2, baseDelayMs: 350 }
+    );
 
     if (profileError || !profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 403 });
@@ -179,7 +220,10 @@ export async function GET(request: NextRequest) {
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
 
-    const { data: bookings, error } = await query;
+    const { data: bookings, error } = await withRetry(() => query, {
+      retries: 2,
+      baseDelayMs: 450,
+    });
 
     if (error) {
       console.error("Supabase error:", error);
@@ -220,10 +264,16 @@ export async function GET(request: NextRequest) {
     const propertyImagesMap: Record<string, string[]> = {};
     
     if (propertyIds.length > 0) {
-      const { data: images, error: imagesError } = await supabase
-        .from("property_images")
-        .select("property_id, public_url, storage_path, is_primary, display_order")
-        .in("property_id", propertyIds);
+      const { data: images, error: imagesError } = await withRetry(
+        () =>
+          supabase
+            .from("property_images")
+            .select(
+              "property_id, public_url, storage_path, is_primary, display_order"
+            )
+            .in("property_id", propertyIds),
+        { retries: 2, baseDelayMs: 450 }
+      );
       
       if (imagesError) {
         console.error("Error fetching property images:", imagesError);
@@ -342,6 +392,17 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error("Error fetching bookings:", error);
+
+    const message = error instanceof Error ? error.message : String(error);
+    if (isTransientUpstreamError(message)) {
+      return NextResponse.json(
+        {
+          error:
+            "Bookings service is temporarily unavailable. Please refresh and try again.",
+        },
+        { status: 503 }
+      );
+    }
 
     // Return appropriate error response based on error type
     if (error instanceof Error) {

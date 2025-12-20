@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2 } from "lucide-react";
+import LogoImage from "@/components/LogoImage";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -258,28 +258,28 @@ export default function AuthCallbackPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10 p-8">
+      <div className="w-full max-w-md rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10 p-8">
         <div className="space-y-6">
           <div className="flex items-center justify-center">
-            <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-400/10 dark:to-purple-400/10 flex items-center justify-center ring-1 ring-blue-500/20 dark:ring-blue-400/20">
+              <LogoImage variant="icon" size="md" />
             </div>
           </div>
 
           <div className="text-center space-y-2">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Completing sign in</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <h2 className="text-xl font-semibold text-foreground">Completing sign in</h2>
+            <p className="text-sm text-muted-foreground">
               Securing your session and preparing your account.
             </p>
           </div>
 
           <div className="space-y-3">
-            <div className="h-2 w-full rounded-full bg-slate-200/70 dark:bg-slate-800 overflow-hidden">
-              <div className="h-full w-1/3 bg-slate-900/70 dark:bg-white/70 animate-pulse" />
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div className="h-full w-1/3 bg-primary/70 animate-pulse" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
-              <div className="h-10 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+              <div className="h-10 rounded-xl bg-muted/70 animate-pulse" />
+              <div className="h-10 rounded-xl bg-muted/70 animate-pulse" />
             </div>
           </div>
         </div>

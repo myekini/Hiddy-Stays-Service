@@ -16,7 +16,7 @@ export default async function BookingPaymentPage({
   const token = typeof rawToken === "string" ? rawToken : undefined;
   
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}> 
+    <Suspense fallback={<div className="min-h-screen bg-background" />}> 
       <BookingPaymentScreen bookingId={id} accessToken={token} />
     </Suspense>
   );

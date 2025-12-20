@@ -215,8 +215,8 @@ class UnifiedEmailService {
 
     const subject =
       userData.role === "host"
-        ? "Welcome to HiddyStays - List your property and keep 100%! 👋"
-        : "Welcome to HiddyStays - Discover your next stay! 👋";
+        ? "Welcome to HiddyStays — Keep 100% of your earnings"
+        : "Welcome to HiddyStays — Book with zero hidden fees";
 
     const result = await this.sendEmail(
       userData.email,
@@ -289,7 +289,7 @@ class UnifiedEmailService {
 
     const result = await this.sendEmail(
       data.guestEmail,
-      `Complete your booking at ${data.propertyTitle} 🏠`,
+      `Complete your booking at ${data.propertyTitle}`,
       template,
       "HiddyStays <admin@hiddystays.com>"
     );

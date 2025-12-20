@@ -79,12 +79,16 @@ const AdminPropertyManagement: React.FC = () => {
   const loadProperties = useCallback(async () => {
     try {
       setLoading(true);
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error("Authentication token not found.");
+      }
       const propertiesData = await propertyService.getProperties({
         status: filterStatus === "all" ? undefined : filterStatus,
         property_type: filterType === "all" ? undefined : filterType,
         country: filterCountry === "all" ? undefined : filterCountry,
         search: searchTerm || undefined,
-      });
+      }, token);
       setProperties(propertiesData);
     } catch (error) {
       console.error("Error loading properties:", error);
@@ -96,7 +100,7 @@ const AdminPropertyManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterType, filterCountry, searchTerm, toast]);
+  }, [filterStatus, filterType, filterCountry, searchTerm, toast, session?.access_token]);
 
   useEffect(() => {
     loadProperties();

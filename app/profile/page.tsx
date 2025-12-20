@@ -17,13 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import LogoImage from "@/components/LogoImage";
 import {
   User,
   Mail,
   Phone,
   MapPin,
   ArrowLeft,
-  Loader2,
   Camera,
   Edit3,
   Calendar,
@@ -31,6 +31,7 @@ import {
   Shield,
   Home,
   Heart,
+  Loader2,
   Check,
   X,
   Award,
@@ -109,7 +110,7 @@ export default function ProfilePage() {
           .single();
 
         if (profileError && profileError.code !== "PGRST116") {
-          console.error("Error fetching profile:", profileError);
+          // Profile not found or error - will use user metadata as fallback
         }
 
         // Set profile data (prefer database, fallback to user_metadata)
@@ -181,10 +182,9 @@ export default function ProfilePage() {
           memberSince,
         });
       } catch (error) {
-        console.error("Error loading profile data:", error);
         toast({
           title: "Error loading profile",
-          description: "Failed to load profile data. Please refresh the page.",
+          description: error instanceof Error ? error.message : "Failed to load profile data. Please refresh the page.",
           variant: "destructive",
         });
       } finally {
@@ -302,8 +302,8 @@ export default function ProfilePage() {
       });
 
       if (profileError) {
-        console.warn("Profiles table update failed:", profileError);
-        // Don't throw error here as auth update succeeded
+        // Profiles table update failed but auth update succeeded
+        // This is acceptable as user_metadata is the source of truth
       }
 
       toast({
@@ -392,16 +392,20 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F7FA] dark:bg-[#0F172A]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#102334] dark:text-[#10B981]" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-400/10 dark:to-purple-400/10 flex items-center justify-center ring-1 ring-blue-500/20 dark:ring-blue-400/20">
+          <LogoImage variant="icon" size="md" />
+        </div>
       </div>
     );
   }
 
   if (isLoadingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F7FA] dark:bg-[#0F172A]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#102334] dark:text-[#10B981]" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-400/10 dark:to-purple-400/10 flex items-center justify-center ring-1 ring-blue-500/20 dark:ring-blue-400/20">
+          <LogoImage variant="icon" size="md" />
+        </div>
       </div>
     );
   }
@@ -419,7 +423,7 @@ export default function ProfilePage() {
         : "Guest";
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] dark:bg-[#0F172A]">
+    <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Header Bar */}
         <div className="mb-12">
@@ -429,18 +433,18 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex items-center gap-2 text-slate-600 hover:text-[#102334] dark:text-slate-400 dark:hover:text-white"
+                  className="flex items-center gap-2 text-slate-600 hover:text-primary dark:text-slate-400 dark:hover:text-white"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back</span>
                 </Button>
               </Link>
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#102334] dark:bg-[#10B981] flex items-center justify-center">
+                <div className="h-10 w-10 rounded-xl bg-primary dark:bg-primary flex items-center justify-center">
                   <User className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-[#0F172A] dark:text-white">
+                  <h1 className="text-3xl font-bold text-foreground">
                     My Profile
                   </h1>
                   <p className="text-base text-slate-600 dark:text-slate-400">
@@ -455,7 +459,7 @@ export default function ProfilePage() {
               {!isEditing && (
                 <Button
                   onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-2 bg-[#102334] hover:bg-[#0F172A] dark:bg-[#10B981] dark:hover:bg-[#059669] text-white shadow-sm hover:shadow-md transition-all"
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
                 >
                   <Edit3 className="h-4 w-4" />
                   <span>Edit Profile</span>
@@ -478,7 +482,7 @@ export default function ProfilePage() {
                       src={profileData.avatar_url || undefined}
                       alt={displayName}
                     />
-                    <AvatarFallback className="bg-[#102334] dark:bg-[#10B981] text-white text-3xl font-bold">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-3xl font-bold">
                       {profileData.firstName?.[0] ||
                         profileData.email?.[0]?.toUpperCase() ||
                         "U"}
@@ -512,7 +516,7 @@ export default function ProfilePage() {
 
                 {/* Name and Role */}
                 <div className="space-y-3">
-                  <h2 className="text-3xl font-bold text-[#0F172A] dark:text-white">
+                  <h2 className="text-3xl font-bold text-foreground">
                     {displayName}
                   </h2>
                   <div className="flex items-center justify-center gap-2">
@@ -570,10 +574,10 @@ export default function ProfilePage() {
             {/* Total Bookings */}
             <Card className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
               <CardContent className="p-6 text-center">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-[#102334] dark:text-[#10B981]">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-primary">
                   <Calendar className="h-6 w-6" />
                 </div>
-                <div className="text-3xl font-bold text-[#0F172A] dark:text-white mb-1">
+                <div className="text-3xl font-bold text-foreground mb-1">
                   {stats.bookingCount}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -585,10 +589,10 @@ export default function ProfilePage() {
             {/* Average Rating */}
             <Card className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
               <CardContent className="p-6 text-center">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-[#102334] dark:text-[#10B981]">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-primary">
                   <Star className="h-6 w-6" />
                 </div>
-                <div className="text-3xl font-bold text-[#0F172A] dark:text-white mb-1">
+                <div className="text-3xl font-bold text-foreground mb-1">
                   {stats.avgRating !== null ? stats.avgRating.toFixed(1) : "—"}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -600,10 +604,10 @@ export default function ProfilePage() {
             {/* Membership */}
             <Card className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
               <CardContent className="p-6 text-center">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-[#102334] dark:text-[#10B981]">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-primary">
                   <Award className="h-6 w-6" />
                 </div>
-                <div className="text-3xl font-bold text-[#0F172A] dark:text-white mb-1 capitalize">
+                <div className="text-3xl font-bold text-foreground mb-1 capitalize">
                   {stats.membershipTier}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -616,7 +620,7 @@ export default function ProfilePage() {
           {/* Profile Information Form */}
           <Card className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
             <CardHeader className="px-8 pt-8 pb-6">
-              <CardTitle className="text-xl font-semibold text-[#0F172A] dark:text-white">
+              <CardTitle className="text-xl font-semibold text-foreground">
                 Profile Information
               </CardTitle>
               <CardDescription className="text-base text-slate-500 dark:text-slate-400">
@@ -630,9 +634,9 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="firstName"
-                    className="flex items-center gap-2 text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
-                    <User className="h-4 w-4 text-[#475569] dark:text-slate-400" />
+                    <User className="h-4 w-4 text-muted-foreground" />
                     <span>First Name</span>
                   </Label>
                   <Input
@@ -651,9 +655,9 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="lastName"
-                    className="flex items-center gap-2 text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
-                    <User className="h-4 w-4 text-[#475569] dark:text-slate-400" />
+                    <User className="h-4 w-4 text-muted-foreground" />
                     <span>Last Name</span>
                   </Label>
                   <Input
@@ -672,9 +676,9 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="email"
-                    className="flex items-center gap-2 text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
-                    <Mail className="h-4 w-4 text-[#475569] dark:text-slate-400" />
+                    <Mail className="h-4 w-4 text-muted-foreground" />
                     <span>Email</span>
                   </Label>
                   <Input
@@ -692,9 +696,9 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="phone"
-                    className="flex items-center gap-2 text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
-                    <Phone className="h-4 w-4 text-[#475569] dark:text-slate-400" />
+                    <Phone className="h-4 w-4 text-muted-foreground" />
                     <span>Phone</span>
                   </Label>
                   <Input
@@ -711,9 +715,9 @@ export default function ProfilePage() {
                 <div className="space-y-2 md:col-span-2">
                   <Label
                     htmlFor="location"
-                    className="flex items-center gap-2 text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
-                    <MapPin className="h-4 w-4 text-[#475569] dark:text-slate-400" />
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span>Location</span>
                   </Label>
                   {isEditing ? (
@@ -739,7 +743,7 @@ export default function ProfilePage() {
                 <div className="space-y-2 md:col-span-2">
                   <Label
                     htmlFor="bio"
-                    className="text-sm font-medium text-[#0F172A] dark:text-white"
+                    className="text-sm font-medium text-foreground"
                   >
                     Bio
                   </Label>
@@ -772,7 +776,7 @@ export default function ProfilePage() {
                   <Button
                     onClick={handleSave}
                     disabled={isLoading}
-                    className="flex items-center gap-2 bg-[#102334] hover:bg-[#0F172A] dark:bg-[#10B981] dark:hover:bg-[#059669] text-white shadow-sm hover:shadow-md transition-all"
+                    className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-all"
                   >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

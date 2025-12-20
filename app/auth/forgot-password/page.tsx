@@ -75,12 +75,12 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back Button */}
         <Link
           href="/auth"
-className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 group"
+          className="inline-flex items-center text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 mb-6 group"
         >
           <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Sign In
@@ -88,22 +88,22 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
 
         {/* Logo Section */}
         <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-white dark:bg-card rounded-lg shadow-sm mb-4">
+          <div className="inline-block p-4 bg-card rounded-lg shadow-sm mb-4 border border-border/50">
             <LogoImage size="lg" />
           </div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">Reset your password</p>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+          <p className="text-foreground font-medium">Reset your password</p>
+          <p className="text-muted-foreground text-sm mt-1">
             We'll help you get back on track
           </p>
         </div>
 
         {/* Auth Card */}
-        <Card className="shadow-sm border">
+        <Card className="shadow-sm border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
           <CardHeader className="text-center pb-6">
-            <CardTitle className="text-2xl font-bold text-gray-800">
+            <CardTitle className="text-2xl font-bold text-foreground">
               {isEmailSent ? "Check Your Email" : "Reset Your Password"}
             </CardTitle>
-            <CardDescription className="text-gray-600">
+            <CardDescription className="text-muted-foreground">
               {isEmailSent
                 ? "We've sent you a password reset link"
                 : "No worries! Enter your email and we'll send you a reset link"}
@@ -115,25 +115,25 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
               <div className="space-y-6">
                 {/* Success State */}
                 <div className="text-center">
-<div className="mx-auto w-16 h-16 bg-brand-50 dark:bg-brand-950/30 rounded-full flex items-center justify-center mb-4">
-<CheckCircle className="h-8 w-8 text-brand-600" />
+                  <div className="mx-auto w-16 h-16 bg-brand-50 dark:bg-brand-950/30 rounded-full flex items-center justify-center mb-4">
+                    <CheckCircle className="h-8 w-8 text-brand-600 dark:text-brand-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
                     Email Sent Successfully!
                   </h3>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     We've sent a password reset link to{" "}
-                    <span className="font-medium text-gray-800">{email}</span>
+                    <span className="font-medium text-foreground">{email}</span>
                   </p>
                 </div>
 
                 {/* Instructions */}
-<div className="bg-muted border border-border rounded-lg p-4">
+                <div className="bg-muted/40 border border-border rounded-lg p-4">
                   <div className="flex items-start space-x-3">
-<AlertCircle className="h-5 w-5 text-brand-600 mt-0.5 flex-shrink-0" />
-<div className="text-sm text-foreground">
+                    <AlertCircle className="h-5 w-5 text-brand-600 dark:text-brand-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-foreground">
                       <p className="font-medium mb-1">Next Steps:</p>
-<ul className="space-y-1 text-muted-foreground">
+                      <ul className="space-y-1 text-muted-foreground">
                         <li>• Check your email inbox</li>
                         <li>• Look for an email from HiddyStays</li>
                         <li>• Click the reset link in the email</li>
@@ -164,7 +164,7 @@ className="inline-flex items-center text-brand-600 hover:text-brand-700 mb-6 gro
                   <Link href="/auth">
                     <Button
                       variant="ghost"
-className="w-full text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/30"
+                      className="w-full text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950/30"
                     >
                       Back to Sign In
                     </Button>
@@ -174,11 +174,11 @@ className="w-full text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hov
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700">
+                  <Label htmlFor="email" className="text-foreground">
                     Email Address
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -191,7 +191,7 @@ className="w-full text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hov
                   </div>
                 </div>
 
-<Button
+                <Button
                   type="submit"
                   variant="brand"
                   className="w-full"
@@ -210,11 +210,11 @@ className="w-full text-brand-600 hover:text-brand-700 hover:bg-brand-50 dark:hov
             )}
 
             {/* Footer */}
-            <div className="text-center mt-6 text-gray-500 text-sm">
+            <div className="text-center mt-6 text-muted-foreground text-sm">
               Remember your password?{" "}
               <Link
                 href="/auth"
-className="text-brand-600 hover:text-brand-700 underline"
+                className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline"
               >
                 Sign in instead
               </Link>

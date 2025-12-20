@@ -46,7 +46,7 @@ export const HostBookingNotification = ({
   specialRequests,
 }: HostBookingNotificationProps) => {
   return (
-    <EmailLayout preview={`New booking for ${propertyName} - You earned $${netAmount}!`}>
+    <EmailLayout preview={`New booking: ${propertyName} — $${netAmount} confirmed`}>
       {/* Earnings Hero */}
       <Section style={earningsHero}>
         <Text style={heroTitle}>New Booking</Text>
@@ -56,9 +56,9 @@ export const HostBookingNotification = ({
 
       {/* Greeting */}
       <Section style={greetingSection}>
-        <Text style={greeting}>Hey {hostName} 🎉</Text>
+        <Text style={greeting}>Hi {hostName},</Text>
         <Text style={mainMessage}>
-          You have a new booking for <strong>{propertyName}</strong>.
+          New booking confirmed for <strong>{propertyName}</strong>.
         </Text>
       </Section>
 

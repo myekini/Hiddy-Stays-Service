@@ -122,19 +122,39 @@ export function BookingManagement({
         throw new Error("No authentication token available");
       }
 
-      const response = await fetch(`/api/bookings?${params.toString()}`, {
+      const url = `/api/bookings?${params.toString()}`;
+      console.log("[BookingManagement] Fetching bookings from:", url);
+      console.log("[BookingManagement] Request params:", { hostId, propertyId, filters });
+      
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
       });
 
+      console.log("[BookingManagement] Response status:", response.status);
+      console.log("[BookingManagement] Response ok:", response.ok);
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data?.error || "Failed to load bookings");
+        const responseText = await response.text();
+        console.error("[BookingManagement] Response status:", response.status);
+        console.error("[BookingManagement] Response text:", responseText);
+        
+        let data: any = {};
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          console.error("[BookingManagement] Failed to parse error response as JSON");
+        }
+        
+        console.error("[BookingManagement] API error:", data);
+        throw new Error(data?.error || `Failed to load bookings (HTTP ${response.status})`);
       }
 
       const data = await response.json().catch(() => ({}));
+      console.log("[BookingManagement] Received data:", data);
+      console.log("[BookingManagement] Bookings count:", data.bookings?.length || 0);
       setBookings(data.bookings || []);
     } catch (error) {
       const message =

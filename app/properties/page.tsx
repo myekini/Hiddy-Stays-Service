@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import PropertyCard from "@/components/PropertyCard";
+import LogoImage from "@/components/LogoImage";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,64 +168,30 @@ function PropertiesContent() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Monte-inspired Page Header */}
-      <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-hidden">
-        {/* Elegant Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-              backgroundSize: "60px 60px",
-            }}
-          />
-        </div>
+      {/* Modern Page Header */}
+      <div className="relative bg-background pt-24 pb-16 overflow-hidden">
+        {/* Ambient Glow Effect */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-blue-500/10 dark:bg-blue-400/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-blue-500/5"></div>
-
-        <div className="container mx-auto px-6 py-20 relative">
-          <div className="text-center text-white max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-8 border border-white/10">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-              <span className="text-white">
-                {properties.length} premium properties available
+        <div className="container mx-auto px-6 relative">
+          <div className="text-center max-w-3xl mx-auto">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 bg-secondary/60 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold mb-6 border border-border/60">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-foreground">
+                {properties.length} {properties.length === 1 ? 'property' : 'properties'} available
               </span>
             </div>
 
-            <h1 className="text-5xl lg:text-6xl font-light mb-6 tracking-tight text-white">
-              Discover Your <span className="font-medium">Perfect Stay</span>
+            {/* Headline */}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight mb-4">
+              Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">Perfect Stay</span>
             </h1>
-            <p className="text-xl lg:text-2xl text-white/80 mb-8 leading-relaxed font-light">
-              Experience luxury accommodations with{" "}
-              <span className="font-medium text-white">zero platform fees</span>
-              .<br />
-              Direct booking, exceptional value, authentic hospitality.
+            
+            {/* Subheadline */}
+            <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
+              Book directly with hosts — zero platform fees, instant confirmation.
             </p>
-
-            {/* Elegant Stats */}
-            <div className="flex items-center justify-center gap-12 mt-12">
-              <div className="text-center">
-                <div className="text-4xl font-light text-white mb-2">0%</div>
-                <div className="text-sm text-white/60 uppercase tracking-wider">
-                  Platform Fees
-                </div>
-              </div>
-              <div className="w-px h-16 bg-white/20"></div>
-              <div className="text-center">
-                <div className="text-4xl font-light text-white mb-2">100%</div>
-                <div className="text-sm text-white/60 uppercase tracking-wider">
-                  Value to You
-                </div>
-              </div>
-              <div className="w-px h-16 bg-white/20"></div>
-              <div className="text-center">
-                <div className="text-4xl font-light text-white mb-2">24/7</div>
-                <div className="text-sm text-white/60 uppercase tracking-wider">
-                  Support
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -233,7 +200,7 @@ function PropertiesContent() {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
           <div className="lg:w-80 flex-shrink-0">
-            <div className="bg-card rounded-lg shadow-sm border border-border p-6 sticky top-4">
+            <div className="bg-card/60 dark:bg-card/60 backdrop-blur-xl rounded-2xl shadow-sm border border-border/50 p-6 sticky top-4 ring-1 ring-black/5 dark:ring-white/10">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-foreground">Filters</h2>
                 <Button
@@ -452,23 +419,23 @@ function PropertiesContent() {
           {/* Properties List */}
           <div className="flex-1">
             {/* Results Header */}
-            <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-8">
+            <div className="bg-card/60 dark:bg-card/60 backdrop-blur-xl rounded-2xl shadow-sm border border-border/50 p-6 mb-8 ring-1 ring-black/5 dark:ring-white/10">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-foreground mb-1">
                     {loading
                       ? "Searching..."
-                      : `${properties.length} Properties Found`}
+                      : `${properties.length} ${properties.length === 1 ? 'Property' : 'Properties'}`}
                   </h2>
-                  <p className="text-muted-foreground">
-                    Zero platform fees on all bookings
+                  <p className="text-sm text-muted-foreground">
+                    Book directly with hosts
                   </p>
                   {error && (
                     <p className="text-destructive text-sm mt-2">{error}</p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                <div className="flex items-center gap-1 bg-secondary/60 rounded-xl p-1 border border-border/60">
                   <Button
                     variant={viewMode === "grid" ? "default" : "ghost"}
                     size="sm"
@@ -499,7 +466,7 @@ function PropertiesContent() {
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="card-premium-modern p-6 sticky top-4">
+                  <div key={i} className="bg-card/60 backdrop-blur-xl rounded-2xl border border-border/50 overflow-hidden ring-1 ring-black/5 dark:ring-white/10">
                     <Skeleton className="h-48 w-full" />
                     <div className="p-6 space-y-3">
                       <Skeleton className="h-4 w-3/4" />
@@ -530,17 +497,19 @@ function PropertiesContent() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="text-muted-foreground mb-4">
-                  <Search className="h-12 w-12 mx-auto" />
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-secondary/60 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Search className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  No properties found
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  No properties match your search
                 </h3>
-                <p className="text-muted-foreground mb-4">
-                  Try adjusting your search criteria
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Try expanding your dates or adjusting your filters to see more options.
                 </p>
-                <Button onClick={clearFilters}>Clear Filters</Button>
+                <Button onClick={clearFilters} size="lg" className="rounded-full">
+                  Clear All Filters
+                </Button>
               </div>
             )}
           </div>
@@ -559,7 +528,9 @@ export default function PropertiesPage() {
             <Header />
             <div className="container mx-auto px-4 py-8">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-400/10 dark:to-purple-400/10 flex items-center justify-center ring-1 ring-blue-500/20 dark:ring-blue-400/20 mx-auto mb-4">
+                  <LogoImage variant="icon" size="md" />
+                </div>
                 <p className="text-muted-foreground">Loading properties...</p>
               </div>
             </div>

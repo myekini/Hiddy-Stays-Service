@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import {
   Plus,
@@ -21,6 +21,7 @@ import {
   AlertCircle,
   BarChart3,
   ArrowUpRight,
+  Building,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +57,7 @@ import { CalendarManagement } from "@/components/CalendarManagement";
 import { BookingManagement } from "@/components/BookingManagement";
 import { supabase } from "@/integrations/supabase/client";
 import BackButton from "@/components/ui/BackButton";
+import DashboardLoading from "@/components/ui/DashboardLoading";
 
 const HostAnalyticsDashboard = dynamic(
   () => import("@/components/HostAnalyticsDashboard").then((m) => m.HostAnalyticsDashboard),
@@ -99,7 +101,6 @@ interface Booking {
 function HostDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
@@ -167,16 +168,29 @@ function HostDashboard() {
       next === "overview" || next === "properties" || next === "bookings" || next === "analytics"
         ? next
         : "overview";
-    if (normalized !== activeTab) {
-      setActiveTab(normalized);
-    }
-  }, [tabParam, activeTab]);
+    setActiveTab((prev) => (prev === normalized ? prev : normalized));
+  }, [tabParam]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const next = new URLSearchParams(window.location.search).get("tab") || "overview";
+      const normalized =
+        next === "overview" || next === "properties" || next === "bookings" || next === "analytics"
+          ? next
+          : "overview";
+      setActiveTab((prev) => (prev === normalized ? prev : normalized));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const navigateToTab = (tab: "overview" | "properties" | "bookings" | "analytics") => {
     setActiveTab(tab);
-    const nextParams = new URLSearchParams(searchParams.toString());
-    nextParams.set("tab", tab);
-    router.push(`/host-dashboard?${nextParams.toString()}`);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState({}, "", url.toString());
   };
 
   const getAccessToken = async (): Promise<string | null> => {
@@ -209,6 +223,9 @@ function HostDashboard() {
       if (!hostIdParam) return;
 
       const token = await getAccessToken();
+      console.log("[HostDashboard] Loading bookings with hostId:", hostIdParam);
+      console.log("[HostDashboard] Has auth token:", !!token);
+      
       const bookingsRequest = token
         ? fetch(`/api/bookings?host_id=${hostIdParam}&limit=5`, {
             headers: {
@@ -234,9 +251,19 @@ function HostDashboard() {
         setStats(statsData);
       }
 
-      if (bookingsResponse && bookingsResponse.ok) {
-        const bookingsData = await bookingsResponse.json();
-        setRecentBookings(bookingsData.bookings || []);
+      if (bookingsResponse) {
+        console.log("[HostDashboard] Bookings response status:", bookingsResponse.status);
+        if (bookingsResponse.ok) {
+          const bookingsData = await bookingsResponse.json();
+          console.log("[HostDashboard] Bookings data:", bookingsData);
+          console.log("[HostDashboard] Bookings count:", bookingsData.bookings?.length || 0);
+          setRecentBookings(bookingsData.bookings || []);
+        } else {
+          const errorData = await bookingsResponse.json().catch(() => ({}));
+          console.error("[HostDashboard] Bookings API error:", errorData);
+        }
+      } else {
+        console.warn("[HostDashboard] No bookings request made (missing token)");
       }
     } catch {
       toast({
@@ -277,6 +304,9 @@ function HostDashboard() {
         }
 
         const token = await getAccessToken();
+        console.log("[HostDashboard useEffect] Loading bookings with hostId:", hostIdParam);
+        console.log("[HostDashboard useEffect] Has auth token:", !!token);
+        
         const bookingsRequest = token
           ? fetch(`/api/bookings?host_id=${hostIdParam}&limit=5`, {
               headers: {
@@ -302,9 +332,19 @@ function HostDashboard() {
           setStats(statsData);
         }
 
-        if (bookingsResponse && bookingsResponse.ok) {
-          const bookingsData = await bookingsResponse.json();
-          setRecentBookings(bookingsData.bookings || []);
+        if (bookingsResponse) {
+          console.log("[HostDashboard useEffect] Bookings response status:", bookingsResponse.status);
+          if (bookingsResponse.ok) {
+            const bookingsData = await bookingsResponse.json();
+            console.log("[HostDashboard useEffect] Bookings data:", bookingsData);
+            console.log("[HostDashboard useEffect] Bookings count:", bookingsData.bookings?.length || 0);
+            setRecentBookings(bookingsData.bookings || []);
+          } else {
+            const errorData = await bookingsResponse.json().catch(() => ({}));
+            console.error("[HostDashboard useEffect] Bookings API error:", errorData);
+          }
+        } else {
+          console.warn("[HostDashboard useEffect] No bookings request made (missing token)");
         }
       } catch {
         toast({
@@ -364,227 +404,193 @@ function HostDashboard() {
 
   const showSkeletons = loading;
 
+  if (loading && properties.length === 0 && recentBookings.length === 0) {
+    return (
+      <DashboardLoading
+        title="Loading Host Dashboard"
+        description="Loading your properties and bookings..."
+        icon={<Home className="w-6 h-6" />}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-      <div className="container mx-auto px-6 py-12">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto max-w-6xl px-4 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <BackButton to="/" className="mb-2 -ml-2">
-                Back to Home
-              </BackButton>
-              <h1 className="text-3xl font-semibold text-gray-900">
-                Host Dashboard
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Welcome back, {user?.user_metadata?.first_name || "Host"}
-              </p>
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <BackButton to="/" className="mb-2 -ml-2">
+              Back to Home
+            </BackButton>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center">
+                <Home className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Host Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Manage your properties and bookings</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="text-sm text-slate-600">
-            {showSkeletons ? (
-              <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
-            ) : (
-              <span>{stats.total_properties} properties · {stats.active_bookings} active bookings</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => {
-                setSelectedProperty(null);
-                setShowPropertyForm(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Property
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (properties.length > 0) {
-                  const first = properties[0];
-                  if (first) {
-                    setSelectedProperty(first);
-                    setShowCalendar(true);
-                  }
-                } else {
-                  toast({
-                    title: "No Properties",
-                    description: "Please add a property first to manage calendar",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Calendar
-            </Button>
-            <Button variant="outline" onClick={() => navigateToTab("bookings")}>
-              <ArrowUpRight className="w-4 h-4 mr-2" />
-              Bookings
-            </Button>
-            <Button variant="outline" onClick={() => navigateToTab("analytics")}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Analytics
-            </Button>
-          </div>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Home className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Properties</p>
-                  {showSkeletons ? (
-                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
-                  ) : (
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {stats.total_properties}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-emerald-50 rounded-lg">
-                  <Calendar className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Bookings</p>
-                  {showSkeletons ? (
-                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
-                  ) : (
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {stats.active_bookings}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Revenue</p>
-                  {showSkeletons ? (
-                    <div className="mt-2 h-7 w-24 bg-slate-200 rounded animate-pulse" />
-                  ) : (
-                    <p className="text-2xl font-semibold text-gray-900">
-                      ${stats.monthly_revenue.toLocaleString()}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="p-2 bg-yellow-50 rounded-lg">
-                  <Star className="w-5 h-5 text-yellow-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Rating</p>
-                  {showSkeletons ? (
-                    <div className="mt-2 h-7 w-14 bg-slate-200 rounded animate-pulse" />
-                  ) : (
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {stats.avg_rating}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Monte-styled Main Content */}
-        <Tabs value={activeTab} onValueChange={(v) => navigateToTab(v as "overview" | "properties" | "bookings" | "analytics")} className="space-y-12">
-          <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200">
-            <TabsList className="grid w-full grid-cols-4 bg-transparent h-12 p-1">
-              <TabsTrigger 
-                value="overview" 
-                className="data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 font-medium rounded-xl transition-all duration-200"
-              >
+        {/* Main Content Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => navigateToTab(v as "overview" | "properties" | "bookings" | "analytics")} className="w-full">
+          <div className="flex items-center justify-start mb-6">
+            <TabsList className="w-full sm:w-auto grid grid-cols-4">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <Home className="w-4 h-4" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger 
-                value="properties" 
-                className="data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 font-medium rounded-xl transition-all duration-200"
-              >
+              <TabsTrigger value="properties" className="flex items-center gap-2">
+                <Building className="w-4 h-4" />
                 Properties
               </TabsTrigger>
-              <TabsTrigger 
-                value="bookings" 
-                className="data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 font-medium rounded-xl transition-all duration-200"
-              >
+              <TabsTrigger value="bookings" className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
                 Bookings
               </TabsTrigger>
-              <TabsTrigger 
-                value="analytics" 
-                className="data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-600 font-medium rounded-xl transition-all duration-200"
-              >
+              <TabsTrigger value="analytics" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
                 Analytics
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-12">
+          <TabsContent value="overview" className="mt-6 space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Properties</p>
+                      {showSkeletons ? (
+                        <div className="mt-2 h-7 w-14 bg-muted rounded animate-pulse" />
+                      ) : (
+                        <p className="text-2xl font-semibold text-foreground">
+                          {stats.total_properties}
+                        </p>
+                      )}
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <Home className="w-5 h-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Bookings</p>
+                      {showSkeletons ? (
+                        <div className="mt-2 h-7 w-14 bg-muted rounded animate-pulse" />
+                      ) : (
+                        <p className="text-2xl font-semibold text-foreground">
+                          {stats.active_bookings}
+                        </p>
+                      )}
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Revenue</p>
+                      {showSkeletons ? (
+                        <div className="mt-2 h-7 w-24 bg-muted rounded animate-pulse" />
+                      ) : (
+                        <p className="text-2xl font-semibold text-foreground">
+                          ${stats.monthly_revenue.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Rating</p>
+                      {showSkeletons ? (
+                        <div className="mt-2 h-7 w-14 bg-muted rounded animate-pulse" />
+                      ) : (
+                        <p className="text-2xl font-semibold text-foreground">
+                          {stats.avg_rating}
+                        </p>
+                      )}
+                    </div>
+                    <div className="h-10 w-10 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 flex items-center justify-center">
+                      <Star className="w-5 h-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Properties Section */}
-            <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">
-              <CardHeader className="pb-8">
+            <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <CardTitle className="text-2xl font-light text-slate-900 tracking-tight">Your Properties</CardTitle>
-                    <CardDescription className="text-slate-600 font-light">
-                      Manage and monitor your property listings with ease
+                  <div>
+                    <CardTitle>Your Properties</CardTitle>
+                    <CardDescription>
+                      Manage and monitor your property listings
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateToTab("properties")}
-                    className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    View All
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateToTab("properties")}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View All
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProperty(null);
+                        setShowPropertyForm(true);
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Property
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 {showSkeletons ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {Array.from({ length: 2 }).map((_, i) => (
-                      <div key={i} className="h-40 rounded-2xl bg-slate-200/60 animate-pulse" />
+                      <div key={i} className="h-40 rounded-2xl bg-muted/70 animate-pulse" />
                     ))}
                   </div>
                 ) : properties.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Home className="w-8 h-8 text-slate-400" />
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Home className="w-8 h-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-medium text-slate-900 mb-2">No properties yet</h3>
-                    <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+                    <h3 className="text-lg font-medium text-foreground mb-2">No properties yet</h3>
+                    <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                       Start hosting by adding your first property. It only takes a few minutes.
                     </p>
                     <Button
@@ -592,7 +598,7 @@ function HostDashboard() {
                         setSelectedProperty(null);
                         setShowPropertyForm(true);
                       }}
-                      className="bg-slate-900 hover:bg-slate-800 text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Add Your First Property
@@ -602,10 +608,10 @@ function HostDashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {properties.map((property) => (
                     <div key={property.id}>
-                      <Card className="overflow-hidden border-0 shadow-sm hover:shadow-lg transition-all duration-300 group bg-white">
+                      <Card className="overflow-hidden border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 group bg-card">
                         <div className="flex">
                           {/* Property Image */}
-                          <div className="w-36 h-36 flex-shrink-0 relative bg-slate-50">
+                          <div className="w-36 h-36 flex-shrink-0 relative bg-muted">
                             <img
                               src={property.images?.[0] || '/assets/apartment_lobby_ss.jpg'}
                               alt={property.title}
@@ -619,8 +625,8 @@ function HostDashboard() {
                                 variant="secondary"
                                 className={`text-xs font-medium px-2 py-1 ${
                                   property.is_active 
-                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
-                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/50" 
+                                    : "bg-muted text-muted-foreground border-border"
                                 }`}
                               >
                                 {property.is_active ? "Active" : "Inactive"}
@@ -631,12 +637,12 @@ function HostDashboard() {
                           {/* Property Details */}
                           <div className="flex-1 p-6">
                             <div className="flex items-start justify-between mb-3">
-                              <h3 className="font-medium text-slate-900 text-lg line-clamp-1 group-hover:text-slate-800">
+                              <h3 className="font-medium text-foreground text-lg line-clamp-1">
                                 {property.title}
                               </h3>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="text-slate-400 hover:text-slate-600">
+                                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                                     <MoreHorizontal className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -679,13 +685,13 @@ function HostDashboard() {
                               </DropdownMenu>
                             </div>
 
-                            <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                               <MapPin className="w-4 h-4" />
                               <span className="line-clamp-1">{property.address}</span>
                             </div>
 
                             <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-6 text-sm text-slate-600">
+                              <div className="flex items-center gap-6 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-2">
                                   <Bed className="w-4 h-4" />
                                   <span className="font-medium">{property.bedrooms}</span>
@@ -696,40 +702,40 @@ function HostDashboard() {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <p className="font-semibold text-slate-900 text-lg">
-                                  ${property.price_per_night}<span className="text-sm font-normal text-slate-500">/night</span>
+                                <p className="font-semibold text-foreground text-lg">
+                                  ${property.price_per_night}<span className="text-sm font-normal text-muted-foreground">/night</span>
                                 </p>
                               </div>
                             </div>
 
                             {/* Performance Metrics */}
-                            <div className="grid grid-cols-3 gap-6 pt-4 border-t border-slate-100">
+                            <div className="grid grid-cols-3 gap-6 pt-4 border-t border-border/50">
                               <div className="text-center">
                                 <div className="flex items-center justify-center gap-1 mb-1">
                                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                                  <span className="text-sm font-semibold text-slate-900">
+                                  <span className="text-sm font-semibold text-foreground">
                                     {property.rating || 0}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-muted-foreground">
                                   {property.review_count || 0} reviews
                                 </p>
                               </div>
 
                               <div className="text-center">
-                                <div className="text-sm font-semibold text-slate-900 mb-1">
+                                <div className="text-sm font-semibold text-foreground mb-1">
                                   {property.occupancy_rate || 0}%
                                 </div>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-muted-foreground">
                                   Occupancy
                                 </p>
                               </div>
 
                               <div className="text-center">
-                                <div className="text-sm font-semibold text-slate-900 mb-1">
+                                <div className="text-sm font-semibold text-foreground mb-1">
                                   ${(property.revenue || 0).toLocaleString()}
                                 </div>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-muted-foreground">
                                   Revenue
                                 </p>
                               </div>
@@ -745,20 +751,19 @@ function HostDashboard() {
             </Card>
 
             {/* Recent Bookings Section */}
-            <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">
-              <CardHeader className="pb-8">
+            <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <CardTitle className="text-2xl font-light text-slate-900 tracking-tight">Recent Bookings</CardTitle>
-                    <CardDescription className="text-slate-600 font-light">
-                      Latest booking requests and confirmations from your guests
+                  <div>
+                    <CardTitle>Recent Bookings</CardTitle>
+                    <CardDescription>
+                      Latest booking requests and confirmations
                     </CardDescription>
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={() => navigateToTab("bookings")}
-                    className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     View All
@@ -769,16 +774,16 @@ function HostDashboard() {
                 {showSkeletons ? (
                   <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="h-28 rounded-2xl bg-slate-200/60 animate-pulse" />
+                      <div key={i} className="h-28 rounded-2xl bg-muted/70 animate-pulse" />
                     ))}
                   </div>
                 ) : recentBookings.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Calendar className="w-8 h-8 text-slate-400" />
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="w-8 h-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-medium text-slate-900 mb-2">No recent bookings</h3>
-                    <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+                    <h3 className="text-lg font-medium text-foreground mb-2">No recent bookings</h3>
+                    <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                       Your recent booking activity will appear here once guests start making reservations.
                     </p>
                   </div>
@@ -786,21 +791,21 @@ function HostDashboard() {
                   <div className="space-y-4">
                     {recentBookingsTop.map((booking) => (
                       <div key={booking.id}>
-                        <Card className="border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 bg-white">
+                        <Card className="border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 bg-card">
                           <CardContent className="p-4 sm:p-5">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-start gap-3 min-w-0 flex-1">
-                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-slate-700">
+                                <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-foreground">
                                   {getInitials(booking.guest_name)}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <p className="font-semibold text-slate-900 truncate">
+                                      <p className="font-semibold text-foreground truncate">
                                         {booking.guest_name}
                                       </p>
-                                      <p className="text-sm text-slate-500 truncate">
+                                      <p className="text-sm text-muted-foreground truncate">
                                         {getBookingPropertyTitle(booking)}
                                       </p>
                                     </div>
@@ -809,37 +814,37 @@ function HostDashboard() {
                                       variant="secondary"
                                       className={`text-xs font-medium px-2.5 py-1 ${
                                         booking.status === "confirmed"
-                                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                          ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/50"
                                           : booking.status === "pending"
-                                            ? "bg-amber-100 text-amber-700 border-amber-200"
-                                            : "bg-red-100 text-red-700 border-red-200"
+                                            ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800/50"
+                                            : "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50"
                                       }`}
                                     >
                                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                     </Badge>
                                   </div>
 
-                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                                     <div className="flex items-center gap-2">
-                                      <Calendar className="w-4 h-4 text-slate-400" />
+                                      <Calendar className="w-4 h-4 text-muted-foreground" />
                                       <span className="whitespace-nowrap">
                                         {formatDateSafe(getBookingDates(booking).checkIn)}
                                       </span>
-                                      <span className="text-slate-400">→</span>
+                                      <span className="text-muted-foreground">→</span>
                                       <span className="whitespace-nowrap">
                                         {formatDateSafe(getBookingDates(booking).checkOut)}
                                       </span>
                                     </div>
-                                    <span className="hidden sm:inline text-slate-300">•</span>
+                                    <span className="hidden sm:inline text-muted-foreground/50">•</span>
                                     <div className="flex items-center gap-2">
-                                      <DollarSign className="w-4 h-4 text-slate-400" />
-                                      <span className="font-semibold text-slate-900">
+                                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-semibold text-foreground">
                                         ${booking.total_amount.toLocaleString()}
                                       </span>
-                                      <span className="text-slate-500">total</span>
+                                      <span className="text-muted-foreground">total</span>
                                     </div>
-                                    <span className="hidden sm:inline text-slate-300">•</span>
-                                    <div className="text-xs text-slate-400">
+                                    <span className="hidden sm:inline text-muted-foreground/50">•</span>
+                                    <div className="text-xs text-muted-foreground">
                                       {formatDateSafe(booking.created_at)}
                                     </div>
                                   </div>
@@ -850,7 +855,7 @@ function HostDashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="hidden sm:inline-flex text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                  className="hidden sm:inline-flex text-muted-foreground hover:text-foreground hover:bg-muted"
                                 >
                                   <MessageSquare className="w-4 h-4 mr-2" />
                                   Contact
@@ -858,7 +863,7 @@ function HostDashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="sm:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                                  className="sm:hidden text-muted-foreground hover:text-foreground hover:bg-muted"
                                 >
                                   <MessageSquare className="w-4 h-4" />
                                 </Button>
@@ -867,7 +872,7 @@ function HostDashboard() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                      className="text-muted-foreground hover:text-foreground hover:bg-muted"
                                     >
                                       <MoreHorizontal className="w-4 h-4" />
                                     </Button>
@@ -898,9 +903,9 @@ function HostDashboard() {
           </TabsContent>
 
           {/* Properties Tab */}
-          <TabsContent value="properties">
-            <Card>
-              <CardHeader>
+          <TabsContent value="properties" className="mt-6">
+            <Card className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>All Properties</CardTitle>
@@ -909,7 +914,6 @@ function HostDashboard() {
                     </CardDescription>
                   </div>
                   <Button
-                    className="bg-primary hover:bg-primary/90"
                     onClick={() => {
                       setSelectedProperty(null);
                       setShowPropertyForm(true);
@@ -1005,7 +1009,7 @@ function HostDashboard() {
           </TabsContent>
 
           {/* Bookings Tab */}
-          <TabsContent value="bookings">
+          <TabsContent value="bookings" className="mt-6">
             {hostProfileId ? (
               <BookingManagement 
                 hostId={hostProfileId}
@@ -1015,7 +1019,7 @@ function HostDashboard() {
               <div className="min-h-[400px]">
                 <div className="space-y-4">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-24 rounded-2xl bg-slate-200/60 animate-pulse" />
+                    <div key={i} className="h-24 rounded-2xl bg-muted/70 animate-pulse" />
                   ))}
                 </div>
               </div>
@@ -1023,12 +1027,12 @@ function HostDashboard() {
           </TabsContent>
 
           {/* Analytics Tab */}
-          <TabsContent value="analytics">
+          <TabsContent value="analytics" className="mt-6">
             {activeTab === "analytics" ? (
               hostProfileId ? (
                 <HostAnalyticsDashboard hostId={hostProfileId} />
               ) : (
-                <div className="h-40 rounded-2xl bg-slate-200/60 animate-pulse" />
+                <div className="h-40 rounded-2xl bg-muted/70 animate-pulse" />
               )
             ) : null}
           </TabsContent>

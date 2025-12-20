@@ -301,8 +301,8 @@ export function PropertyImageUpload({
 
     if (filesToProcess.length === 0) {
       toast({
-        title: "Upload Limit Reached",
-        description: `You can only upload up to ${maxImages} images.`,
+        title: "Upload limit reached",
+        description: `Maximum ${maxImages} images allowed.`,
         variant: "destructive",
       });
       return;
@@ -329,8 +329,8 @@ export function PropertyImageUpload({
   const handleCropComplete = async () => {
     if (!imgRef || !completedCrop) {
       toast({
-        title: "Error",
-        description: "Please select a crop area first",
+        title: "Crop area required",
+        description: "Select an area to crop.",
         variant: "destructive",
       });
       return;
@@ -354,8 +354,8 @@ export function PropertyImageUpload({
       setUploadedImages(newImages);
 
       toast({
-        title: "Success! 🎉",
-        description: "Image cropped and uploaded successfully",
+        title: "Image cropped ✓",
+        description: "Your photo has been updated.",
       });
 
       setShowCropModal(false);
@@ -365,8 +365,8 @@ export function PropertyImageUpload({
     } catch (error) {
       console.error("Error cropping image:", error);
       toast({
-        title: "Error",
-        description: "Failed to crop and upload image",
+        title: "Upload failed",
+        description: "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -438,8 +438,8 @@ export function PropertyImageUpload({
   const handleUpload = async (files: File[]) => {
     if (!user?.id) {
       toast({
-        title: "Authentication Required",
-        description: "Please log in to upload images",
+        title: "Sign in required",
+        description: "Please sign in to upload images.",
         variant: "destructive",
       });
       return;
@@ -486,8 +486,8 @@ export function PropertyImageUpload({
         setUploadedImages(newImages);
 
         toast({
-          title: "Success! 🎉",
-          description: `${uploadedUrls.length} image(s) uploaded successfully`,
+          title: `${uploadedUrls.length} image${uploadedUrls.length > 1 ? 's' : ''} uploaded ✓`,
+          description: "Your photos are ready.",
         });
       } else {
         // Fallback: temp uploads (no property yet) -> upload individually.
@@ -502,14 +502,14 @@ export function PropertyImageUpload({
         setUploadedImages(newImages);
 
         toast({
-          title: "Success! 🎉",
-          description: `${uploadedUrls.length} image(s) uploaded successfully`,
+          title: `${uploadedUrls.length} image${uploadedUrls.length > 1 ? 's' : ''} uploaded ✓`,
+          description: "Your photos are ready.",
         });
       }
     } catch (error) {
       console.error("Upload error:", error);
       toast({
-        title: "Upload Failed",
+        title: "Upload failed",
         description:
           error instanceof Error ? error.message : "Failed to upload images",
         variant: "destructive",

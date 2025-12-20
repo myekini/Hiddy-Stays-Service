@@ -14,8 +14,8 @@ export const WelcomeEmail = ({ name, role }: WelcomeEmailProps) => {
     <EmailLayout
       preview={
         isHost
-          ? "Welcome to HiddyStays — Start earning 100% today!"
-          : "Welcome to HiddyStays — Discover your next stay!"
+          ? "Welcome to HiddyStays — Keep 100% of your earnings"
+          : "Welcome to HiddyStays — Book with zero hidden fees"
       }
     >
       {/* Hero Image with Overlay */}
@@ -40,17 +40,17 @@ export const WelcomeEmail = ({ name, role }: WelcomeEmailProps) => {
 
       {/* Greeting */}
       <Section style={greetingSection}>
-        <Text style={greeting}>Hey {name} 👋</Text>
+        <Text style={greeting}>Hi {name},</Text>
         <Text style={message}>
           {isHost ? (
             <>
-              Welcome to HiddyStays — the platform where hosts keep{" "}
-              <strong>100% of their earnings</strong> with zero platform fees.
+              Welcome to HiddyStays — keep{" "}
+              <strong>100% of your earnings</strong> with zero platform fees.
             </>
           ) : (
             <>
-              Welcome to HiddyStays — discover amazing places to stay with{" "}
-              <strong>transparent pricing</strong> and direct host communication.
+              Welcome to HiddyStays — book amazing stays with{" "}
+              <strong>transparent pricing</strong> and no hidden fees.
             </>
           )}
         </Text>
@@ -125,7 +125,7 @@ export const WelcomeEmail = ({ name, role }: WelcomeEmailProps) => {
             href="https://hiddystays.com/host-dashboard?utm_source=email&utm_medium=welcome_host&utm_campaign=onboarding"
             style={primaryButton}
           >
-            List Your First Property
+            Add Your Property
           </Button>
         ) : (
           <Button
@@ -139,9 +139,9 @@ export const WelcomeEmail = ({ name, role }: WelcomeEmailProps) => {
 
       {/* Help Section */}
       <Section style={helpSection}>
-        <Text style={helpTitle}>Need help?</Text>
+        <Text style={helpTitle}>Questions?</Text>
         <Text style={helpText}>
-          Contact us anytime at{" "}
+          Contact us at{" "}
           <a href="mailto:admin@hiddystays.com" style={emailLink}>
             admin@hiddystays.com
           </a>

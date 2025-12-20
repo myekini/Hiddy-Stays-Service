@@ -71,7 +71,7 @@ class PropertyService {
   /**
    * Get all properties with optional filtering
    */
-  async getProperties(filters?: PropertyFilters): Promise<Property[]> {
+  async getProperties(filters?: PropertyFilters, authToken?: string): Promise<Property[]> {
     try {
       const params = new URLSearchParams();
 
@@ -84,13 +84,22 @@ class PropertyService {
       }
 
       const queryString = params.toString();
-      const url = `${this.baseUrl}/properties${queryString ? `?${queryString}` : ""}`;
+      
+      // Use admin endpoint if auth token is provided (for admin access)
+      const endpoint = authToken ? "/admin/properties" : "/properties";
+      const url = `${this.baseUrl}${endpoint}${queryString ? `?${queryString}` : ""}`;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
 
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -99,7 +108,26 @@ class PropertyService {
       }
 
       const data = await response.json();
-      return data.properties || [];
+      const properties = data.properties || [];
+      
+      // Map admin API response to Property interface
+      if (authToken && properties.length > 0) {
+        return properties.map((prop: any) => ({
+          ...prop,
+          location: prop.city || prop.address || "",
+          host: {
+            id: prop.host?.user_id || prop.host?.id || "",
+            name: `${prop.host?.first_name || ""} ${prop.host?.last_name || ""}`.trim() || "Host",
+            email: prop.host?.email || "",
+          },
+          total_bookings: prop.total_bookings || 0,
+          total_revenue: prop.total_revenue || 0,
+          average_rating: prop.average_rating || prop.rating || 0,
+          images: prop.images || [],
+        }));
+      }
+      
+      return properties;
     } catch (error) {
       console.error("Error fetching properties:", error);
       throw error;

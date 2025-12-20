@@ -69,8 +69,8 @@ const Header = () => {
       if (isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
       }
-    } catch (error) {
-      console.error("Error signing out:", error);
+    } catch {
+      // Sign out error handled by auth provider
     }
   };
 
@@ -135,11 +135,11 @@ const Header = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-3 py-2 border-b border-neutral-200">
-                    <p className="text-sm font-medium text-neutral-900">
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-sm font-medium text-foreground">
                       {user.user_metadata?.first_name || "Welcome"}
                     </p>
-                    <p className="text-xs text-neutral-500">{user.email}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
 
                   <DropdownMenuItem asChild>

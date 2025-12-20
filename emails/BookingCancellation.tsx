@@ -28,9 +28,9 @@ export const BookingCancellation = ({
   cancellationReason,
 }: BookingCancellationProps) => {
   return (
-    <EmailLayout preview={`Booking Cancelled - ${propertyName}`}>
+    <EmailLayout preview={`Booking cancelled - ${propertyName}`}>
       <Section style={heroTitleSection}>
-        <Text style={heroTitle}>Booking Cancelled 😔</Text>
+        <Text style={heroTitle}>Booking Cancelled</Text>
       </Section>
 
       <Section style={greetingSection}>
@@ -88,13 +88,13 @@ export const BookingCancellation = ({
           )}
           style={primaryButton}
         >
-          Find another stay
+          Browse Properties
         </Button>
       </Section>
 
       <Section style={footerMessageSection}>
         <Text style={footerMessageText}>
-          Need help? Contact us anytime at{' '}
+          Questions? Contact us at{' '}
           <a href="mailto:admin@hiddystays.com" style={emailLink}>
             admin@hiddystays.com
           </a>

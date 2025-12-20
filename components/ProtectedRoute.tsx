@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2 } from "lucide-react";
+import DashboardLoading from "@/components/ui/DashboardLoading";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -71,12 +71,10 @@ const ProtectedRoute = ({
 
   if (loading || checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
+      <DashboardLoading
+        title="Loading"
+        description="Checking your access and preparing your dashboard."
+      />
     );
   }
 

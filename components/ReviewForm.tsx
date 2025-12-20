@@ -65,8 +65,8 @@ export function ReviewForm({
   const handleSubmit = async () => {
     if (overallRating === 0) {
       toast({
-        title: "Rating Required",
-        description: "Please provide an overall rating",
+        title: "Rating required",
+        description: "Select a star rating to continue.",
         variant: "destructive",
       });
       return;
@@ -74,8 +74,8 @@ export function ReviewForm({
 
     if (!comment.trim()) {
       toast({
-        title: "Review Required",
-        description: "Please write your review",
+        title: "Review required",
+        description: "Write your review to continue.",
         variant: "destructive",
       });
       return;
@@ -114,8 +114,8 @@ export function ReviewForm({
       }
 
       toast({
-        title: "Review Submitted! ⭐",
-        description: "Thank you for sharing your experience",
+        title: "Review submitted ✓",
+        description: "Thank you for your feedback.",
       });
 
       // Reset form
@@ -136,8 +136,8 @@ export function ReviewForm({
     } catch (error: any) {
       console.error("Error submitting review:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to submit review",
+        title: "Unable to submit review",
+        description: error.message || "Please try again.",
         variant: "destructive",
       });
     } finally {

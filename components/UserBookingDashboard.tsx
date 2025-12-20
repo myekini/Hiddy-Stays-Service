@@ -42,6 +42,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ReviewForm } from "@/components/ReviewForm";
 import { supabase } from "@/integrations/supabase/client";
+import DashboardLoading from "@/components/ui/DashboardLoading";
+import BackButton from "@/components/ui/BackButton";
 
 interface UserBooking {
   id: string;
@@ -123,8 +125,8 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
         setBookings([]);
         if (sessionError) {
           toast({
-            title: "Authentication Error",
-            description: "Please sign in to view your bookings",
+            title: "Sign in required",
+            description: "Please sign in to view your bookings.",
             variant: "destructive",
           });
         }
@@ -207,7 +209,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
           : "Failed to load your bookings. Please try again.";
 
       toast({
-        title: "Error Loading Bookings",
+        title: "Unable to load bookings",
         description: errorMessage,
         variant: "destructive",
       });
@@ -275,8 +277,10 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       if (response.ok) {
         const data = await response.json();
         toast({
-          title: "Booking Cancelled ✅",
-          description: `Your booking has been cancelled. ${data.refund?.eligible ? `Refund of ${formatCurrency(data.refund.amount)} will be processed in ${data.refund.processing_time}.` : ""}`,
+          title: "Booking cancelled ✓",
+          description: data.refund?.eligible 
+            ? `Refund of ${formatCurrency(data.refund.amount)} will be processed in ${data.refund.processing_time}.`
+            : "Your booking has been cancelled.",
         });
         setShowCancelDialog(false);
         setSelectedBooking(null);
@@ -288,9 +292,9 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       }
     } catch (error) {
       toast({
-        title: "Error",
+        title: "Unable to cancel booking",
         description:
-          error instanceof Error ? error.message : "Failed to cancel booking",
+          error instanceof Error ? error.message : "Please try again or contact support.",
         variant: "destructive",
       });
     } finally {
@@ -301,15 +305,15 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "confirmed":
-        return "bg-green-100 text-green-700";
+        return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
       case "pending":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
       case "cancelled":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
       case "completed":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
       default:
-        return "bg-slate-100 text-slate-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -350,31 +354,23 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[500px] bg-[#F5F7FA]">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-900 border-t-transparent mx-auto"></div>
-          <div>
-            <p className="text-lg font-medium text-slate-900">
-              Loading your trips...
-            </p>
-            <p className="text-sm text-slate-500 mt-1">
-              Please wait while we fetch your reservations
-            </p>
-          </div>
-        </div>
-      </div>
+      <DashboardLoading
+        title="Loading Bookings"
+        description="Loading your reservations..."
+        icon={<Calendar className="w-6 h-6" />}
+      />
     );
   }
 
   return (
-    <div className="pt-12 pb-24 space-y-8 bg-[#F5F7FA] min-h-screen relative">
+    <div className="pt-12 pb-24 space-y-8 bg-background min-h-screen relative">
       {/* Filter Loading Overlay */}
       {filterLoading && !loading && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-900 border-t-transparent"></div>
-            <p className="text-base font-medium text-slate-900">
-              Loading trips...
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card dark:bg-card rounded-2xl shadow-xl p-8 flex flex-col items-center gap-4 border border-border">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            <p className="text-base font-medium text-foreground">
+              Updating bookings...
             </p>
           </div>
         </div>
@@ -383,19 +379,20 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       {/* Premium Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
-            Trips
+          <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">
+            Bookings
           </h1>
-          <p className="text-base text-slate-500">
-            Where you've been and where you're going
+          <p className="text-base text-muted-foreground">
+            Your reservations, upcoming stays, and payment status
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <BackButton />
           <Button
             variant="outline"
             size="sm"
             onClick={loadUserBookings}
-            className="gap-2 border-slate-200 hover:bg-white hover:shadow-sm rounded-xl"
+            className="gap-2 border-border hover:bg-muted/40 hover:shadow-sm rounded-xl"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -406,14 +403,14 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       {/* Modern Search Bar */}
       <div className="mb-8">
         <div className="relative max-w-2xl">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             placeholder="Search by property, location, or host..."
             value={filters.search}
             onChange={e =>
               setFilters(prev => ({ ...prev, search: e.target.value }))
             }
-            className="pl-14 h-14 rounded-full border-slate-200 bg-white shadow-sm hover:shadow-md focus:border-slate-900 focus:ring-slate-900 transition-shadow text-base"
+            className="pl-14 h-14 rounded-full border-border bg-background shadow-sm hover:shadow-md focus:border-ring focus:ring-ring transition-shadow text-base"
           />
         </div>
       </div>
@@ -426,12 +423,12 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
           onValueChange={(val) => setFilters(prev => ({ ...prev, status: val }))} 
           className="w-full md:w-auto"
         >
-          <TabsList className="bg-white p-1 rounded-full border border-slate-200 h-auto flex-wrap justify-start w-full md:w-auto">
-            <TabsTrigger value="all" className="rounded-full px-4 py-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">All Trips</TabsTrigger>
-            <TabsTrigger value="confirmed" className="rounded-full px-4 py-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">Upcoming</TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-full px-4 py-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">Pending</TabsTrigger>
-            <TabsTrigger value="completed" className="rounded-full px-4 py-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">Past</TabsTrigger>
-            <TabsTrigger value="cancelled" className="rounded-full px-4 py-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">Cancelled</TabsTrigger>
+          <TabsList className="bg-card/60 backdrop-blur-xl p-1 rounded-full border border-border/50 h-auto flex-wrap justify-start w-full md:w-auto ring-1 ring-black/5 dark:ring-white/10">
+            <TabsTrigger value="all" className="rounded-full px-4 py-2 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">All Bookings</TabsTrigger>
+            <TabsTrigger value="confirmed" className="rounded-full px-4 py-2 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Upcoming</TabsTrigger>
+            <TabsTrigger value="pending" className="rounded-full px-4 py-2 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Pending</TabsTrigger>
+            <TabsTrigger value="completed" className="rounded-full px-4 py-2 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Past</TabsTrigger>
+            <TabsTrigger value="cancelled" className="rounded-full px-4 py-2 text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Cancelled</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -443,7 +440,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
             setFilters(prev => ({ ...prev, sortBy: value }))
           }
         >
-          <SelectTrigger className="w-full md:w-auto min-w-[180px] h-11 rounded-full border-slate-200 bg-white hover:bg-slate-50">
+          <SelectTrigger className="w-full md:w-auto min-w-[180px] h-11 rounded-full border-border bg-background hover:bg-muted/40">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -456,55 +453,55 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       {/* Modern Stat Cards - Only show for "All" view to avoid confusion */}
       {filters.status === "all" && bookings.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-          <div className="p-5 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="p-5 bg-card rounded-xl border border-border/50 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-slate-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-slate-600" />
+              <div className="p-2 bg-muted rounded-lg">
+                <TrendingUp className="w-5 h-5 text-muted-foreground" />
               </div>
             </div>
-            <div className="text-sm text-slate-500 mb-1 font-medium">
-              Total Trips
+            <div className="text-sm text-muted-foreground mb-1 font-medium">
+              Total Bookings
             </div>
-            <div className="text-2xl font-semibold text-slate-900">
+            <div className="text-2xl font-semibold text-foreground">
               {bookings.length}
             </div>
           </div>
-          <div className="p-5 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="p-5 bg-card rounded-xl border border-border/50 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CircleCheckBig className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                <CircleCheckBig className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
               </div>
             </div>
-            <div className="text-sm text-slate-500 mb-1 font-medium">
+            <div className="text-sm text-muted-foreground mb-1 font-medium">
               Confirmed
             </div>
-            <div className="text-2xl font-semibold text-slate-900">
+            <div className="text-2xl font-semibold text-foreground">
               {bookings.filter(b => b.status === "confirmed").length}
             </div>
           </div>
-          <div className="p-5 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="p-5 bg-card rounded-xl border border-border/50 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Hourglass className="w-5 h-5 text-yellow-600" />
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <Hourglass className="w-5 h-5 text-amber-700 dark:text-amber-300" />
               </div>
             </div>
-            <div className="text-sm text-slate-500 mb-1 font-medium">
+            <div className="text-sm text-muted-foreground mb-1 font-medium">
               Pending
             </div>
-            <div className="text-2xl font-semibold text-slate-900">
+            <div className="text-2xl font-semibold text-foreground">
               {bookings.filter(b => b.status === "pending").length}
             </div>
           </div>
-          <div className="p-5 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-shadow">
+          <div className="p-5 bg-card rounded-xl border border-border/50 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CalendarCheck className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <CalendarCheck className="w-5 h-5 text-blue-700 dark:text-blue-300" />
               </div>
             </div>
-            <div className="text-sm text-slate-500 mb-1 font-medium">
+            <div className="text-sm text-muted-foreground mb-1 font-medium">
               Completed
             </div>
-            <div className="text-2xl font-semibold text-slate-900">
+            <div className="text-2xl font-semibold text-foreground">
               {bookings.filter(b => b.status === "completed").length}
             </div>
           </div>
@@ -514,22 +511,22 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
       {/* Bookings List */}
       <div className="space-y-6">
         {bookings.length === 0 ? (
-          <div className="p-16 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="p-16 text-center bg-card rounded-2xl border border-border/50 shadow-sm">
             <div className="flex flex-col items-center max-w-md mx-auto">
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                <Calendar className="w-10 h-10 text-slate-400" />
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                <Calendar className="w-10 h-10 text-muted-foreground" />
               </div>
-              <h3 className="text-2xl font-semibold text-slate-900 mb-3">
-                No trips found
+              <h3 className="text-2xl font-semibold text-foreground mb-3">
+                No bookings found
               </h3>
-              <p className="text-slate-500 text-base leading-relaxed mb-6">
+              <p className="text-muted-foreground text-base leading-relaxed mb-6">
                 {filters.search || filters.status !== "all"
-                  ? "Try adjusting your filters to see more bookings."
-                  : "You haven't made any bookings yet. Start exploring properties to book your perfect stay!"}
+                  ? "Try adjusting your search criteria or filters"
+                  : "When you book a stay, it will show up here."}
               </p>
               {!filters.search && filters.status === "all" && (
                 <Button
-                  className="mt-2 rounded-full h-12 px-8 font-medium bg-slate-900 hover:bg-slate-800 text-white shadow-sm hover:shadow-md transition-shadow"
+                  className="mt-2 rounded-full h-12 px-8 font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md transition-shadow"
                   onClick={() => (window.location.href = "/properties")}
                 >
                   Explore properties
@@ -545,7 +542,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden relative group">
+              <div className="bg-card rounded-2xl border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden relative group">
                 <div className="p-6 lg:p-8">
                   {/* Status Badge */}
                   <div className="absolute top-6 right-6 lg:top-8 lg:right-8 z-10">
@@ -567,15 +564,15 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                           <img
                             src={booking.property.images[0]}
                             alt={booking.property?.title || "Property"}
-                            className="w-full lg:w-64 h-56 object-cover rounded-xl border border-slate-200 group-hover:scale-105 transition-transform duration-500"
+                            className="w-full lg:w-64 h-56 object-cover rounded-xl border border-border group-hover:scale-105 transition-transform duration-500"
                             onError={e => {
                               (e.target as HTMLImageElement).src =
                                 "/placeholder.svg";
                             }}
                           />
                         ) : (
-                          <div className="w-full lg:w-64 h-56 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center">
-                            <div className="flex flex-col items-center gap-2 text-slate-400">
+                          <div className="w-full lg:w-64 h-56 bg-muted rounded-xl border border-border flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
                               <Calendar className="w-10 h-10" />
                               <span className="text-sm font-medium">No image</span>
                             </div>
@@ -592,11 +589,11 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                     <div className="flex-1 min-w-0 space-y-4">
                       <div>
                         <Link href={`/properties/${booking.property_id}`} className="block group-hover:text-blue-600 transition-colors">
-                          <h3 className="text-xl font-bold text-slate-900 mb-2 line-clamp-1 leading-tight">
+                          <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-1 leading-tight">
                             {booking.property?.title || "Property"}
                           </h3>
                         </Link>
-                        <div className="flex items-center gap-2 text-sm text-slate-500 mb-5">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-5">
                           <MapPin className="w-4 h-4 flex-shrink-0" />
                           <span className="truncate">
                             {booking.property?.location ||
@@ -607,44 +604,44 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                       </div>
 
                       {/* Booking Details Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-muted/40 rounded-xl border border-border/50">
                         <div className="space-y-1">
-                          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                             Check-in
                           </p>
-                          <p className="text-sm font-semibold text-slate-900">
+                          <p className="text-sm font-semibold text-foreground">
                             {formatDate(booking.check_in_date)}
                           </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                             Check-out
                           </p>
-                          <p className="text-sm font-semibold text-slate-900">
+                          <p className="text-sm font-semibold text-foreground">
                             {formatDate(booking.check_out_date)}
                           </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                             Guests
                           </p>
-                          <p className="text-sm font-semibold text-slate-900">
+                          <p className="text-sm font-semibold text-foreground">
                             {booking.guests_count}{" "}
                             {booking.guests_count === 1 ? "guest" : "guests"}
                           </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                             Total
                           </p>
-                          <p className="text-base font-bold text-slate-900">
+                          <p className="text-base font-bold text-foreground">
                             {formatCurrency(booking.total_amount)}
                           </p>
                         </div>
                       </div>
 
                       {booking.special_requests && (
-                        <div className="flex gap-2 items-start p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-800">
+                        <div className="flex gap-2 items-start p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-200">
                           <MessageCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                           <p className="line-clamp-1">{booking.special_requests}</p>
                         </div>
@@ -660,7 +657,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                           setSelectedBooking(booking);
                           setShowDetails(true);
                         }}
-                        className="w-full sm:flex-1 lg:w-full justify-center border-slate-200 hover:bg-slate-50 hover:border-slate-900 rounded-xl h-10 font-medium text-slate-900"
+                        className="w-full sm:flex-1 lg:w-full justify-center border-border hover:bg-muted/40 hover:border-ring rounded-xl h-10 font-medium text-foreground"
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
@@ -671,7 +668,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           asChild
                           size="sm"
-                          className="w-full sm:flex-1 lg:w-full justify-center bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-10 font-medium shadow-sm"
+                          className="w-full sm:flex-1 lg:w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-10 font-medium shadow-sm"
                         >
                           <Link href={`/booking/${booking.id}/pay`}>
                             <CreditCard className="w-4 h-4 mr-2" />
@@ -684,7 +681,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full sm:flex-1 lg:w-full justify-center text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 rounded-xl h-10 font-medium"
+                          className="w-full sm:flex-1 lg:w-full justify-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/20 border-red-200 dark:border-red-800/50 hover:border-red-300 dark:hover:border-red-700/50 rounded-xl h-10 font-medium"
                           onClick={() => {
                             setSelectedBooking(booking);
                             loadCancellationPolicy(booking);
@@ -700,7 +697,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full sm:flex-1 lg:w-full justify-center text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200 hover:border-amber-300 rounded-xl h-10 font-medium"
+                          className="w-full sm:flex-1 lg:w-full justify-center text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20 border-amber-200 dark:border-amber-800/50 hover:border-amber-300 dark:hover:border-amber-700/50 rounded-xl h-10 font-medium"
                           onClick={() => {
                             setSelectedBooking(booking);
                             setShowReviewForm(true);
@@ -714,7 +711,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full sm:flex-1 lg:w-full justify-center text-slate-500 hover:text-slate-900 rounded-xl h-10"
+                        className="w-full sm:flex-1 lg:w-full justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl h-10"
                       >
                         Contact Host
                       </Button>
@@ -852,9 +849,9 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
             </div>
           ) : cancellationPolicy ? (
             <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-muted/40 rounded-lg border border-border/50">
                 <h4 className="font-semibold mb-2">Cancellation Policy</h4>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-muted-foreground mb-3">
                   {cancellationPolicy.reason}
                 </p>
 
@@ -862,7 +859,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Refund Amount:</span>
-                      <span className="font-medium text-green-600">
+                      <span className="font-medium text-emerald-700 dark:text-emerald-300">
                         {cancellationPolicy.refund_amount
                           ? formatCurrency(cancellationPolicy.refund_amount)
                           : "N/A"}
@@ -885,12 +882,12 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
               </div>
 
               {!cancellationPolicy.can_cancel && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-red-800">
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg">
+                  <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
                     <AlertCircle className="w-4 h-4" />
                     <span className="font-medium">Cannot Cancel</span>
                   </div>
-                  <p className="text-sm text-red-600 mt-1">
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                     {cancellationPolicy.reason}
                   </p>
                 </div>
@@ -911,7 +908,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
                 {cancellationPolicy.can_cancel && (
                   <Button
                     onClick={handleCancelBooking}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                     disabled={loadingCancellation}
                   >
                     {loadingCancellation ? (
@@ -928,7 +925,7 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
             </div>
           ) : (
             <div className="text-center py-4">
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Unable to load cancellation policy
               </p>
             </div>
@@ -949,8 +946,8 @@ export function UserBookingDashboard({ userId }: UserBookingDashboardProps) {
           }}
           onSuccess={() => {
             toast({
-              title: "Review Submitted! ⭐",
-              description: "Thank you for sharing your experience",
+              title: "Review submitted ✓",
+              description: "Thank you for your feedback.",
             });
           }}
         />

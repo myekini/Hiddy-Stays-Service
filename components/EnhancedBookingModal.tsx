@@ -569,16 +569,16 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in-0 zoom-in-95 duration-300"
+        className="bg-card rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in-0 zoom-in-95 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900">
+        <div className="flex items-center justify-between p-6 border-b border-border/50 bg-gradient-to-r from-muted/40 to-background">
           <div>
-            <h2 id="booking-modal-title" className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h2 id="booking-modal-title" className="text-2xl font-bold text-foreground">
               Complete Booking
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Step {getStepNumber(step)} of 5
             </p>
           </div>
@@ -587,45 +587,45 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
             size="sm"
             onClick={onClose}
             aria-label="Close"
-            className="hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full p-2"
+            className="hover:bg-muted rounded-full p-2"
           >
             <X className="w-5 h-5" />
           </Button>
         </div>
 
         {/* Property Info - Compact */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+        <div className="p-6 border-b border-border/50 bg-muted/30">
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 flex-shrink-0">
               <img
                 src={property.images?.[0] || '/placeholder.svg'}
                 alt={property.title}
-                className="w-full h-full object-cover rounded-xl ring-2 ring-slate-200 dark:ring-slate-700"
+                className="w-full h-full object-cover rounded-xl ring-2 ring-border/60"
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-slate-900 dark:text-white truncate text-lg">
+              <h3 className="font-semibold text-foreground truncate text-lg">
                 {property.title}
               </h3>
               <div className="flex items-center gap-3 mt-1.5">
-                <div className="flex items-center text-slate-600 dark:text-slate-400 text-sm">
+                <div className="flex items-center text-muted-foreground text-sm">
                   <MapPin className="w-3.5 h-3.5 mr-1" />
                   <span className="truncate">{property.location}</span>
                 </div>
                 {property.rating && (
                   <div className="flex items-center gap-1">
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    <span className="text-sm font-medium text-foreground">
                       {property.rating}
                     </span>
                   </div>
                 )}
               </div>
-              <div className="mt-2 inline-flex items-baseline gap-1 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                <span className="text-lg font-bold text-slate-900 dark:text-white">
+              <div className="mt-2 inline-flex items-baseline gap-1 bg-card px-2.5 py-1 rounded-lg border border-border/50">
+                <span className="text-lg font-bold text-foreground">
                   ${property.price_per_night}
                 </span>
-                <span className="text-xs text-slate-600 dark:text-slate-400">/night</span>
+                <span className="text-xs text-muted-foreground">/night</span>
               </div>
             </div>
           </div>
@@ -634,12 +634,12 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
         {/* Scrollable Content */}
         <div className="overflow-y-auto max-h-[calc(90vh-240px)]">
           {/* Modern Progress Tracking */}
-          <div className="p-6 border-b border-border/50 bg-white dark:bg-slate-900">
+          <div className="p-6 border-b border-border/50 bg-card">
             <div className="max-w-3xl mx-auto">
               {/* Progress Steps */}
               <div className="relative">
                 {/* Progress Line */}
-                <div className="absolute left-0 right-0 top-1/2 h-1 bg-gray-100 dark:bg-slate-700 -translate-y-1/2">
+                <div className="absolute left-0 right-0 top-1/2 h-1 bg-muted -translate-y-1/2">
                   <div 
                     className="h-full bg-brand-500 transition-all duration-500 ease-out rounded-full"
                     style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
@@ -660,8 +660,8 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                           isCompleted 
                             ? 'bg-brand-500 border-brand-500 text-white' 
                             : isCurrent 
-                              ? 'bg-white border-brand-500 text-brand-500 shadow-lg shadow-brand-500/20'
-                              : 'bg-white border-gray-300 dark:border-slate-600 text-gray-400 dark:text-slate-500'
+                              ? 'bg-background border-brand-500 text-brand-500 shadow-lg shadow-brand-500/20'
+                              : 'bg-background border-border text-muted-foreground'
                         }`}>
                           {isCompleted ? (
                             <Check className="w-4 h-4" />
@@ -678,8 +678,8 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                             isCurrent 
                               ? 'text-brand-600 dark:text-brand-400 font-semibold' 
                               : isCompleted 
-                                ? 'text-gray-600 dark:text-gray-300'
-                                : 'text-gray-400 dark:text-slate-500'
+                                ? 'text-muted-foreground'
+                                : 'text-muted-foreground/70'
                           }`}>
                             {stepItem.title}
                           </div>
@@ -692,10 +692,10 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
               
               {/* Current Step Description */}
               <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+                <p className="text-sm text-muted-foreground">
                   {steps[currentStepIndex]?.description}
                 </p>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-1 text-xs text-muted-foreground/80">
                   Step {currentStepIndex + 1} of {steps.length - 1}
                 </div>
               </div>
@@ -711,14 +711,14 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                 <h3 className="text-xl font-semibold text-foreground mb-2">
                   Select Dates
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Choose your check-in and check-out dates
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-foreground">
                     Check-in Date *
                   </label>
                   <Input
@@ -728,16 +728,16 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                       handleDateChange("checkIn", e.target.value)
                     }
                     min={new Date().toISOString().split("T")[0]}
-                    className={`w-full text-base ${errors.checkIn ? "border-red-500" : ""}`}
+                    className={`w-full text-base ${errors.checkIn ? "border-destructive" : ""}`}
                   />
                   {errors.checkIn && (
-                    <p className="text-red-500 text-sm mt-1">
+                    <p className="text-destructive text-sm mt-1">
                       {errors.checkIn}
                     </p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-foreground">
                     Check-out Date *
                   </label>
                   <Input
@@ -750,10 +750,10 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                       bookingData.checkIn ||
                       new Date().toISOString().split("T")[0]
                     }
-                    className={`w-full text-base ${errors.checkOut ? "border-red-500" : ""}`}
+                    className={`w-full text-base ${errors.checkOut ? "border-destructive" : ""}`}
                   />
                   {errors.checkOut && (
-                    <p className="text-red-500 text-sm mt-1">
+                    <p className="text-destructive text-sm mt-1">
                       {errors.checkOut}
                     </p>
                   )}
@@ -762,19 +762,19 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
 
               {/* Show nights count if dates selected */}
               {bookingData.checkIn && bookingData.checkOut && bookingData.totalNights > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-muted/40 border border-border/50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-blue-900">
+                      <p className="font-medium text-foreground">
                         {bookingData.totalNights} night{bookingData.totalNights > 1 ? "s" : ""}
                       </p>
-                      <p className="text-sm text-blue-700">
+                      <p className="text-sm text-muted-foreground">
                         {format(new Date(bookingData.checkIn), "MMM dd")} - {format(new Date(bookingData.checkOut), "MMM dd, yyyy")}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-blue-700">Estimated total</p>
-                      <p className="text-lg font-bold text-blue-900">
+                      <p className="text-sm text-muted-foreground">Estimated total</p>
+                      <p className="text-lg font-bold text-foreground">
                         ${property.price_per_night * bookingData.totalNights}
                       </p>
                     </div>
@@ -784,7 +784,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
 
               {/* Availability Status */}
               {isCheckingAvailability && (
-                <div className="flex items-center space-x-2 text-blue-600">
+                <div className="flex items-center space-x-2 text-primary">
                   <Clock className="w-4 h-4 animate-spin" />
                   <span>Checking availability...</span>
                 </div>
@@ -794,16 +794,16 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                 <Alert
                   className={
                     availability.available
-                      ? "border-green-200 bg-green-50"
-                      : "border-red-200 bg-red-50"
+                      ? "border-primary/30 bg-primary/10"
+                      : "border-destructive/30 bg-destructive/10"
                   }
                 >
                   <AlertCircle
-                    className={`w-4 h-4 ${availability.available ? "text-green-600" : "text-red-600"}`}
+                    className={`w-4 h-4 ${availability.available ? "text-primary" : "text-destructive"}`}
                   />
                   <AlertDescription
                     className={
-                      availability.available ? "text-green-800" : "text-red-800"
+                      availability.available ? "text-primary" : "text-destructive"
                     }
                   >
                     {availability.available
@@ -814,11 +814,11 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
               )}
 
               {availability?.conflicts && availability.conflicts.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h4 className="font-medium text-red-800 mb-2">
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+                  <h4 className="font-medium text-destructive mb-2">
                     Conflicting Bookings:
                   </h4>
-                  <ul className="text-sm text-red-700 space-y-1">
+                  <ul className="text-sm text-destructive/90 space-y-1">
                     {availability.conflicts.map((conflict, index) => (
                       <li key={index}>
                         {format(new Date(conflict.checkIn), "MMM dd")} -{" "}
@@ -856,17 +856,17 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                 >
                   +
                 </Button>
-                <span className="text-gray-600">
+                <span className="text-muted-foreground">
                   of {property.max_guests} guests
                 </span>
               </div>
 
               {/* Guest Guidelines */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-800 mb-2">
+              <div className="bg-muted/40 border border-border/50 rounded-lg p-4">
+                <h4 className="font-medium text-foreground mb-2">
                   Guest Guidelines
                 </h4>
-                <ul className="text-sm text-blue-700 space-y-1">
+                <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• Maximum {property.max_guests} guests allowed</li>
                   <li>• Check-in: {property.check_in_time || "3:00 PM"}</li>
                   <li>• Check-out: {property.check_out_time || "11:00 AM"}</li>
@@ -882,7 +882,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Full Name *
                   </label>
                   <Input
@@ -892,15 +892,15 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                     onChange={(e) =>
                       setGuestInfo({ ...guestInfo, name: e.target.value })
                     }
-                    className={errors.name ? "border-red-500" : ""}
+                    className={errors.name ? "border-destructive" : ""}
                   />
                   {errors.name && (
-                    <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+                    <p className="text-destructive text-sm mt-1">{errors.name}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Email Address *
                   </label>
                   <Input
@@ -910,15 +910,15 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                     onChange={(e) =>
                       setGuestInfo({ ...guestInfo, email: e.target.value })
                     }
-                    className={errors.email ? "border-red-500" : ""}
+                    className={errors.email ? "border-destructive" : ""}
                   />
                   {errors.email && (
-                    <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                    <p className="text-destructive text-sm mt-1">{errors.email}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Phone Number *
                   </label>
                   <Input
@@ -931,23 +931,23 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                       value = value.replace(/[^\d+\s()-]/g, "");
                       setGuestInfo({ ...guestInfo, phone: value });
                     }}
-                    className={errors.phone ? "border-red-500" : ""}
+                    className={errors.phone ? "border-destructive" : ""}
                   />
                   {errors.phone && (
-                    <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                    <p className="text-destructive text-sm mt-1">{errors.phone}</p>
                   )}
                   {!errors.phone && (
-                    <p className="text-gray-500 text-xs mt-1">
+                    <p className="text-muted-foreground text-xs mt-1">
                       Include country code (e.g., +1 for US/Canada)
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-muted/40 border border-border/50 rounded-lg p-4">
                 <div className="flex items-center space-x-2">
-                  <Shield className="w-4 h-4 text-green-600" />
-                  <p className="text-sm text-green-800 font-medium">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <p className="text-sm text-muted-foreground font-medium">
                     Your information is secure and will only be used for this booking
                   </p>
                 </div>
@@ -968,26 +968,26 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                 </h4>
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Check-in</span>
+                    <span className="text-muted-foreground">Check-in</span>
                     <span>
                       {format(new Date(bookingData.checkIn), "MMM dd, yyyy")}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Check-out</span>
+                    <span className="text-muted-foreground">Check-out</span>
                     <span>
                       {format(new Date(bookingData.checkOut), "MMM dd, yyyy")}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Guests</span>
+                    <span className="text-muted-foreground">Guests</span>
                     <span>
                       {bookingData.guests} guest
                       {bookingData.guests > 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Nights</span>
+                    <span className="text-muted-foreground">Nights</span>
                     <span>
                       {bookingData.totalNights} night
                       {bookingData.totalNights > 1 ? "s" : ""}
@@ -1002,14 +1002,14 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                   <h4 className="font-semibold text-foreground mb-2">
                     Cancellation Policy
                   </h4>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     {property.cancellation_policy}
                   </p>
                 </Card>
               )}
 
               {/* Security Notice */}
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <Shield className="w-4 h-4" />
                 <span>Your payment is secure and encrypted</span>
               </div>
@@ -1023,7 +1023,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                 Price Details
               </h4>
               <div className="space-y-2">
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between text-muted-foreground">
                   <span>
                     ${property.price_per_night} × {bookingData.totalNights}{" "}
                     night{bookingData.totalNights > 1 ? "s" : ""}
@@ -1034,7 +1034,7 @@ const EnhancedBookingModal: React.FC<EnhancedBookingModalProps> = ({
                   <span>Estimated Total</span>
                   <span>${bookingData.totalAmount.toLocaleString()}</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Final amount calculated at checkout. Includes all fees.
                 </p>
               </div>
