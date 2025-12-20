@@ -83,10 +83,10 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
           transition={{ delay: 0.6, duration: 0.6, type: "spring", stiffness: 100 }}
           className="absolute left-0 right-0 -bottom-10 sm:-bottom-12 flex justify-center pointer-events-none z-20"
         >
-          <div className="pointer-events-auto bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] p-2 pl-6 pr-2 max-w-4xl w-auto mx-auto flex flex-col sm:flex-row items-center gap-4 sm:gap-8 ring-1 ring-black/5 dark:ring-white/10">
+          <div className="pointer-events-auto bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl sm:rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] p-3 sm:p-2 sm:pl-6 sm:pr-2 max-w-4xl w-[calc(100%-2rem)] sm:w-auto mx-4 sm:mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-8 ring-1 ring-black/5 dark:ring-white/10">
             
             {/* Info Group: Location */}
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-start min-w-0 sm:min-w-[140px]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
                   <MapPin className="w-5 h-5" />
@@ -102,7 +102,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
             <div className="hidden sm:block w-px h-10 bg-border/50"></div>
 
             {/* Info Group: Guests */}
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-start min-w-0 sm:min-w-[140px]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
                   <Users className="w-5 h-5" />
@@ -118,7 +118,7 @@ export function StreamlinedHero({ className }: StreamlinedHeroProps) {
             <div className="hidden sm:block w-px h-10 bg-border/50"></div>
 
             {/* Info Group: Price */}
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start min-w-[140px]">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-start min-w-0 sm:min-w-[140px]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 shrink-0">
                   <ShieldCheck className="w-5 h-5" />
