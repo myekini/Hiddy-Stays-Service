@@ -443,19 +443,19 @@ function HostDashboard() {
             <TabsList className="w-full sm:w-auto grid grid-cols-4">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <Home className="w-4 h-4" />
-                Overview
+                <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
               <TabsTrigger value="properties" className="flex items-center gap-2">
                 <Building className="w-4 h-4" />
-                Properties
+                <span className="hidden sm:inline">Properties</span>
               </TabsTrigger>
               <TabsTrigger value="bookings" className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                Bookings
+                <span className="hidden sm:inline">Bookings</span>
               </TabsTrigger>
               <TabsTrigger value="analytics" className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
-                Analytics
+                <span className="hidden sm:inline">Analytics</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -611,7 +611,7 @@ function HostDashboard() {
                       <Card className="overflow-hidden border border-border/50 shadow-sm hover:shadow-lg transition-all duration-300 group bg-card">
                         <div className="flex">
                           {/* Property Image */}
-                          <div className="w-36 h-36 flex-shrink-0 relative bg-muted">
+                          <div className="w-24 h-24 sm:w-36 sm:h-36 flex-shrink-0 relative bg-muted">
                             <img
                               src={property.images?.[0] || '/assets/apartment_lobby_ss.jpg'}
                               alt={property.title}
@@ -635,7 +635,7 @@ function HostDashboard() {
                           </div>
 
                           {/* Property Details */}
-                          <div className="flex-1 p-6">
+                          <div className="flex-1 p-4 sm:p-6">
                             <div className="flex items-start justify-between mb-3">
                               <h3 className="font-medium text-foreground text-lg line-clamp-1">
                                 {property.title}

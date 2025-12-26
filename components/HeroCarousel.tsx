@@ -196,7 +196,7 @@ export function HeroCarousel() {
                 </div>
               )}
             </div>
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/50 text-white text-sm rounded-full backdrop-blur-sm">
+            <div className="absolute bottom-4 md:bottom-4 top-4 md:top-auto left-4 md:left-1/2 md:transform md:-translate-x-1/2 px-4 py-2 bg-black/50 text-white text-sm rounded-full backdrop-blur-sm">
               {currentIndex + 1} / {CAROUSEL_IMAGES.length}
             </div>
           </motion.div>
@@ -265,8 +265,8 @@ export function HeroCarousel() {
         </button>
       </div>
 
-      {/* Thumbnails */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-30 p-2 bg-black/30 backdrop-blur-sm rounded-full">
+      {/* Thumbnails - Hidden on mobile */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden md:flex gap-2 z-30 p-2 bg-black/30 backdrop-blur-sm rounded-full">
         {CAROUSEL_IMAGES.map((img, index) => (
           <button
             key={index}
